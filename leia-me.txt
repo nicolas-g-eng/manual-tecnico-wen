@@ -1,0 +1,13 @@
+MANUAL TÉCNICO DO ENGENHEIRO — WEN TECHNOLOGY (aplicativo instalável / PWA)
+
+COMO INSTALAR NO CELULAR (Android, Samsung Galaxy / Z Fold, iPhone)
+1. Publique esta pasta em qualquer hospedagem com HTTPS (grátis: Netlify Drop, GitHub Pages, Cloudflare Pages, Vercel).
+   - Netlify: acesse app.netlify.com/drop e arraste a pasta inteira. Você recebe um link https://...
+2. Abra o link no celular:
+   - Android (Chrome / Samsung Internet): toque em "Instalar aplicativo" (botão que aparece na tela) ou menu ⋮ > Instalar app.
+   - iPhone (Safari): Compartilhar > Adicionar à Tela de Início.
+3. O ícone da Wen Technology aparece na tela inicial. Abre em tela cheia, com animação de abertura, e funciona sem internet.
+
+Suas preferências (tema, cor, tamanho do texto, FS global), favoritos e valores digitados nas calculadoras são salvos automaticamente no aparelho.
+
+Para gerar um APK/AAB para a Play Store a partir do link publicado, use o PWABuilder (pwabuilder.com).

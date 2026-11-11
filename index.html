@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark" data-accent="blue" data-fs="m">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Manual Técnico Wen</title>
+<meta name="description" content="Manual Técnico do Engenheiro Mecânico — Wen Technology: tabelas, normas e 24 calculadoras, offline.">
+<meta name="theme-color" content="#0B1322">
+<meta name="color-scheme" content="light dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Manual Wen">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=5">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=5">
+<link rel="stylesheet" href="css/app.css">
+<script>
+/* tema aplicado antes da pintura: sem "flash" claro ao abrir */
+(function(){try{var s=JSON.parse(localStorage.getItem('wen.settings')||'{}'),h=document.documentElement,
+t=s.theme||'auto';if(t==='auto')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+h.dataset.theme=t;h.dataset.accent=s.accent||'blue';h.dataset.fs=s.fs||'m';
+if(s.dens==='compact')h.dataset.dens='compact';if(s.motion==='off')h.dataset.motion='off';
+var c={light:'#F3F5F9',dark:'#0B1322',black:'#000000'}[t];document.querySelector('meta[name=theme-color]').content=c;
+if(t!=='light')document.documentElement.style.background=c;}catch(e){}})();
+</script>
+</head>
+<body>
+<div class="splash" id="splash" aria-hidden="true">
+  <div class="sp-logo"><img src="media/m1.webp" alt="" width="600" height="180"></div>
+  <div class="sp-sub">Manual Técnico do Engenheiro</div>
+  <div class="sp-bar"><i></i></div>
+</div>
+<div id="app" class="app"></div>
+<button id="install-fab" class="btn pri" hidden>Instalar aplicativo</button>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px;color:#fff;font-family:system-ui">Este aplicativo precisa de JavaScript.</p></noscript>
+<script src="js/icons.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
