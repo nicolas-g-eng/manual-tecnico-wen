@@ -179,7 +179,7 @@
     return { path: h, q: q, parts: h.split('/') };
   }
   function go(p) { location.hash = '#/' + p; }
-  var scrollPos = {}, popping = false;
+  var scrollPos = {}, popping = false, SEGPREV = {}, SUMPREV = {};
   window.addEventListener('popstate', function () { popping = true; });
   window.addEventListener('hashchange', function () { render(); });
 
@@ -268,7 +268,7 @@
   var QUICK = ['3.3', '5.6', '8.4', '11.2', '11.4', '11.5', '11.6', '6.4', '5.11', '8.5', '3.5', '8.7'];
   function quickHtml() {
     var items = QUICK.filter(function (n) { return BYNUM[n]; });
-    return '<div class="sect-t">Mais usadas na Berwanger<span class="sp"></span><a href="#/c">todos os capítulos</a></div><div class="quick">' + items.map(function (n) {
+    return '<div class="sect-t">Mais usadas<span class="sp"></span><a href="#/c">todos os capítulos</a></div><div class="quick">' + items.map(function (n) {
       var s = BYNUM[n]; return '<button class="qk" data-act="open" data-num="' + n + '"><span class="qn">' + n + '</span><b>' + esc(shortName(s).replace(/^Calc\.\s*/, '')) + '</b></button>';
     }).join('') + '</div>';
   }
@@ -280,7 +280,7 @@
     return topbar('Capítulos', { back: false }) + '<div style="margin-top:8px">' + CHAP.map(function (c) { return accordion(c, false); }).join('') + '</div>';
   }
   function accordion(c, open) {
-    return '<div class="card acc' + (open ? ' open' : '') + '" style="--h:' + (CH_HUE[c.n] || 214) + '"><button class="hd" data-act="acc"><span class="rn">' + String(c.n).padStart(2, '0') + '</span><span style="flex:1"><b>' + esc(c.title) + '</b><small>' + c.sheets.length + ' abas</small></span>' + ic('down', 'chv') + '</button><div class="body list">' + c.sheets.map(function (s) { return sheetRow(BYNUM[s.num]); }).join('') + '</div></div>';
+    return '<div class="card acc' + (open ? ' open' : '') + '" style="--h:' + (CH_HUE[c.n] || 214) + '"><button class="hd" data-act="acc"><span class="rn">' + String(c.n).padStart(2, '0') + '</span><span style="flex:1"><b>' + esc(c.title) + '</b><small>' + c.sheets.length + ' abas</small></span>' + ic('down', 'chv') + '</button><div class="body"><div class="inner list">' + c.sheets.map(function (s) { return sheetRow(BYNUM[s.num]); }).join('') + '</div></div></div>';
   }
   function vChapter(n) {
     var c = CHAP.filter(function (x) { return x.n === n; })[0]; if (!c) return vHome();
@@ -456,7 +456,7 @@
     if (open) h += '</section>';
     h += flushFigs(9999);
     h += '<div class="actions"><button class="btn pri" data-act="copycalc">' + ic('copy', 's') + ' Copiar resultados</button><button class="btn" data-act="memorial">' + ic('book', 's') + ' Memorial (PDF)</button><button class="btn" data-act="resetcalc">' + ic('reset', 's') + ' Restaurar padrões</button></div>';
-    h += '<p class="footnote">' + esc(D.home.aviso || '') + '</p></div></div>';
+    h += '<p class="footnote">' + esc(D.home.aviso || '') + '</p></div></div><div class="livebar" id="livebar" aria-live="polite"></div>';
     return h;
   }
   function fieldHtml(s, r) {
@@ -473,17 +473,29 @@
     var v = cellV(s, 'C' + r.r), unit = txt(cellV(s, 'D' + r.r)), ov = ENG.hasOverride(s.name, 'C' + r.r), h = '';
     if (r.items) {
       var cvv = txt(v); if (isTypRow(s, r) && LIBSEL[s.num]) { var le2 = libFind(LIBSEL[s.num].id); if (le2) cvv = (LIBTYPES.filter(function (x) { return x[0] === le2.type; })[0] || ['', ''])[1] + ' · ' + le2.name; }
-      if (r.items.length <= 3 && r.items.every(function (x) { return String(x).length <= 18; })) h = '<div class="seg" role="group">' + r.items.map(function (it) { return '<button data-act="segpick" data-v="' + esc(it) + '" aria-pressed="' + (String(it) === String(v)) + '">' + esc(it) + '</button>'; }).join('') + '</div>';
+      if (r.items.length <= 3 && r.items.every(function (x) { return String(x).length <= 18; })) { var si = Math.max(0, r.items.map(String).indexOf(String(v))), sk = s.num + ':' + r.r, sf = (sk in SEGPREV) ? SEGPREV[sk] : si; SEGPREV[sk] = si;
+        h = '<div class="seg" role="group" style="--n:' + r.items.length + ';--i:' + sf + '" data-to="' + si + '">' + r.items.map(function (it) { return '<button data-act="segpick" data-v="' + esc(it) + '" aria-pressed="' + (String(it) === String(v)) + '">' + esc(it) + '</button>'; }).join('') + '</div>'; }
       else h = '<button class="pick" data-act="pick" aria-haspopup="listbox"><span>' + esc(cvv) + '</span>' + ic('down', 's') + '</button>';
     } else if (r.num || typeof v === 'number') {
-      h = '<label class="inp"><input inputmode="decimal" autocomplete="off" enterkeyhint="done" value="' + esc(typeof v === 'number' ? numStr(v) : txt(v)) + '" data-act="numin" aria-label="valor"><span class="u">' + esc(unit && unit !== '-' ? unit : '') + '</span></label>';
+      h = '<label class="inp"><input inputmode="decimal" autocomplete="off" enterkeyhint="done" value="' + esc(typeof v === 'number' ? numStr(v) : txt(v)) + '" data-act="numin" aria-label="valor"><span class="u">' + esc(unit && unit !== '-' ? unit : '') + '</span><span class="stp"><button type="button" tabindex="-1" data-act="step" data-d="1" aria-label="Aumentar">+</button><button type="button" tabindex="-1" data-act="step" data-d="-1" aria-label="Diminuir">\u2212</button></span></label>';
     } else {
       h = '<label class="inp"><input value="' + esc(txt(v)) + '" data-act="numin" data-text="1" aria-label="valor"><span class="u">' + esc(unit) + '</span></label>';
     }
     if (r.rawF && ov) h += '<button class="rbtn" data-act="unglobal" aria-label="Voltar ao valor padrão" title="Voltar ao padrão">' + ic('reset', 's') + '</button>';
     return h;
   }
-  function bindCalc(s) { refreshCalc(s, true); }
+  function bindCalc(s) {
+    refreshCalc(s, true);
+    var lb = $('#livebar'), sm = $('#sum');
+    if (lb && sm && 'IntersectionObserver' in window) { var io = new IntersectionObserver(function (en) { lb.classList.toggle('on', !en[0].isIntersecting && innerWidth < 720); }, { threshold: 0 }); io.observe(sm); }
+    else if (lb && innerWidth < 720) lb.classList.add('on');
+  }
+  function stepInput(inp, dir, mult) {
+    var n0 = parseNum(inp.value); if (n0 === null || isNaN(n0)) n0 = 0;
+    var mag = n0 === 0 ? 1 : Math.pow(10, Math.floor(Math.log10(Math.abs(n0))) - 1), st = Math.max(mag, 0.001) * (mult || 1);
+    var nv = parseFloat((n0 + dir * st).toPrecision(12)); inp.value = numStr(nv);
+    inp.dispatchEvent(new Event('input', { bubbles: true })); buzz(4);
+  }
   function refreshCalc(s, full) {
     var rows = calcModel(s), byR = {};
     rows.forEach(function (r) { if (r.k === 'f') byR[r.r] = r; });
@@ -496,7 +508,7 @@
       var N = $('[data-nt]', el); if (N) { if (N.textContent !== note) N.textContent = note; N.style.display = note ? '' : 'none'; }
       if (r.kind === 'in') {
         var ctl = $('[data-ctl]', el), focused = ctl.contains(document.activeElement);
-        if (full || !focused) { var active = document.activeElement; if (!focused) ctl.innerHTML = ctlHtml(s, r); }
+        if (full || !focused) { var active = document.activeElement; if (!focused) { ctl.innerHTML = ctlHtml(s, r); var sgm = $('.seg', ctl); if (sgm) { requestAnimationFrame(function () { requestAnimationFrame(function () { sgm.style.setProperty('--i', sgm.dataset.to); }); }); } } }
         else { var u = $('.u', ctl); if (u) u.textContent = unit && unit !== '-' ? unit : ''; }
         var g = $('[data-g]', el); if (g) g.hidden = !(r.rawF && !ENG.hasOverride(s.name, 'C' + r.r));
       } else {
@@ -505,6 +517,7 @@
         else if (o.err) { V.className = 'val errv'; V.textContent = '—'; V.title = o.err; }
         else if (typeof v === 'string' && v.length > 22) { V.className = 'val txt'; V.textContent = v; }
         else { V.className = 'val'; V.innerHTML = esc(o.t) + (unit && unit !== '-' && o.t !== '' ? '<small>' + esc(unit) + '</small>' : ''); }
+        var sig = (typeof v === 'string') ? v : o.t; if (r.kind !== 'in') { if (el.dataset.prev !== undefined && el.dataset.prev !== sig) { V.classList.remove('tick'); void V.offsetWidth; V.classList.add('tick'); } el.dataset.prev = sig; }
       }
       if (r.kind === 'main' || r.stt) sumRows.push({ label: label, v: v, o: fmtOut(s, r, v), unit: unit, stt: r.stt });
     });
@@ -515,8 +528,15 @@
       S2.classList.toggle('open', open);
       S2.innerHTML = '<button class="sum-h" data-act="sumtog" aria-expanded="' + open + '"><h3>' + ic('gauge', 's') + 'Resultados</h3>' + (nst ? '<span class="status ' + (oks === nst ? 'ok' : 'err') + '">' + ic(oks === nst ? 'okc' : 'errc') + oks + '/' + nst + ' ok</span>' : '') + ic('down', 's chv') + '</button><div class="sum-b">' + (sumRows.length ? sumRows.map(function (x) {
         if (x.stt && typeof x.v === 'string') return '<div class="sum-item"><span>' + esc(x.label) + '</span>' + statusHtml(x.v) + '</div>';
-        return '<div class="sum-item"><span>' + esc(x.label) + '</span><b>' + esc(x.o.t) + (x.unit && x.unit !== '-' && x.o.t !== '—' ? '<small>' + esc(x.unit) + '</small>' : '') + '</b></div>';
+        var tk = (SUMPREV[s.num + x.label] !== undefined && SUMPREV[s.num + x.label] !== x.o.t) ? ' class="tick"' : ''; SUMPREV[s.num + x.label] = x.o.t;
+        return '<div class="sum-item"><span>' + esc(x.label) + '</span><b' + tk + '>' + esc(x.o.t) + (x.unit && x.unit !== '-' && x.o.t !== '—' ? '<small>' + esc(x.unit) + '</small>' : '') + '</b></div>';
       }).join('') : '<div class="muted" style="font-size:.82rem">Preencha os campos para ver os resultados.</div>') + '</div>';
+    }
+    var LB = $('#livebar');
+    if (LB) {
+      var lbm = sumRows.filter(function (x) { return !x.stt; }).slice(0, 2), lbs = sumRows.filter(function (x) { return x.stt; });
+      var lbok = lbs.filter(function (x) { return typeof x.v === 'string' && x.v.indexOf('\u2713') === 0; }).length;
+      LB.innerHTML = lbm.map(function (m) { return '<div class="lb-i"><small>' + esc(m.label) + '</small><b>' + esc(m.o.t) + (m.unit && m.unit !== '-' ? '<i>' + esc(m.unit) + '</i>' : '') + '</b></div>'; }).join('') + (lbs.length ? '<span class="status ' + (lbok === lbs.length ? 'ok' : 'err') + '">' + ic(lbok === lbs.length ? 'okc' : 'errc') + lbok + '/' + lbs.length + '</span>' : '');
     }
     if (s.sub_f) { var cs = $('#csub'); if (cs) cs.textContent = txt(cellV(s, 'B2')); }
   }
@@ -1118,6 +1138,7 @@
       case 'sumtog': var sm = $('#sum'); sm.dataset.open = sm.classList.contains('open') ? '0' : '1'; sm.classList.toggle('open'); t.setAttribute('aria-expanded', sm.classList.contains('open')); break;
       case 'copycalc': if (s) copyText(calcSummaryText(s)); break;
       case 'resetcalc': if (s) resetCalc(s); break;
+      case 'step': (function () { var inp = t.closest('.inp').querySelector('input'); if (inp) stepInput(inp, +t.dataset.d, 1); })(); break;
       case 'memorial': if (s) memorialForm(s); break;
       case 'memogen': if (s) memorialGen(s); break;
       case 'memoprint': memorialPrint(); break;
@@ -1157,6 +1178,7 @@
     if (e.key === '/' && tag !== 'input' && tag !== 'textarea') { e.preventDefault(); go('search'); }
     if (e.key === 'Escape') { closeSheet(); memorialClose(); var lb = $('.lightbox'); if (lb) lb.click(); }
     if (e.key === 'Enter' && tag === 'input' && e.target.dataset.act === 'numin') e.target.blur();
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && tag === 'input' && e.target.dataset.act === 'numin' && !e.target.dataset.text) { e.preventDefault(); stepInput(e.target, e.key === 'ArrowUp' ? 1 : -1, e.shiftKey ? 10 : (e.altKey ? 0.1 : 1)); }
   });
 
   // ---------------------------------------------------------------- estrutura da página

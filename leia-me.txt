@@ -11,7 +11,7 @@ NOVIDADES DA 3.1
     5.11 Flange Parafusado (grupo de parafusos sob momento, axial e cortante)
     8.7  Peso e Custo (chapa, barra, tubo; orçamento rápido)
 - Botão "Memorial (PDF)" em toda calculadora: gera a folha com dados, resultados e verificações para imprimir ou salvar em PDF.
-- Home com atalhos para as calculadoras mais usadas na Berwanger.
+- Home com atalhos para as calculadoras mais usadas.
 
 COMO PUBLICAR A ATUALIZAÇÃO NO GITHUB (nicolas-g-eng/manual-tecnico-wen)
 1. No GitHub, abra o repositório > Add file > Upload files.
