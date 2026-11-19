@@ -508,7 +508,7 @@
       var N = $('[data-nt]', el); if (N) { if (N.textContent !== note) N.textContent = note; N.style.display = note ? '' : 'none'; }
       if (r.kind === 'in') {
         var ctl = $('[data-ctl]', el), focused = ctl.contains(document.activeElement);
-        if (full || !focused) { var active = document.activeElement; if (!focused) { ctl.innerHTML = ctlHtml(s, r); var sgm = $('.seg', ctl); if (sgm) { requestAnimationFrame(function () { requestAnimationFrame(function () { sgm.style.setProperty('--i', sgm.dataset.to); }); }); } } }
+        if (full || !focused) { var active = document.activeElement, typing = focused && active && /^(INPUT|TEXTAREA)$/.test(active.tagName); if (!focused || !typing) { ctl.innerHTML = ctlHtml(s, r); if (focused && active && active.tagName === 'BUTTON') { var nb = $('.seg [aria-pressed=\"true\"]', ctl) || $('button', ctl); if (nb) nb.focus({ preventScroll: true }); } var sgm = $('.seg', ctl); if (sgm) { requestAnimationFrame(function () { requestAnimationFrame(function () { sgm.style.setProperty('--i', sgm.dataset.to); }); }); } } }
         else { var u = $('.u', ctl); if (u) u.textContent = unit && unit !== '-' ? unit : ''; }
         var g = $('[data-g]', el); if (g) g.hidden = !(r.rawF && !ENG.hasOverride(s.name, 'C' + r.r));
       } else {
