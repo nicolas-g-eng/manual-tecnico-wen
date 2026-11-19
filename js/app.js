@@ -1208,6 +1208,13 @@
   }
   window.addEventListener('resize', function () { var si = $('#scrinfo'); if (si) si.textContent = innerWidth + ' × ' + innerHeight + ' px · ' + (innerWidth < 600 ? 'compacto (celular / tela externa)' : innerWidth < 900 ? 'médio (dobrável aberto / tablet)' : 'expandido (painel duplo)'); });
 
+  // resposta visual a qualquer clique em botão/linha/cartão (anel que se expande)
+  document.addEventListener('pointerdown', function (e) {
+    var el = e.target.closest && e.target.closest('button, .row, .card[data-act], .qk, [role="button"]');
+    if (!el || el.disabled || el.closest('.seg')) return;
+    el.classList.remove('tapped'); void el.offsetWidth; el.classList.add('tapped');
+    setTimeout(function () { el.classList.remove('tapped'); }, 520);
+  }, { passive: true });
   // arranque
   var dataP = window.__DATA__ ? Promise.resolve(window.__DATA__) : fetch('data.json').then(function (r) { return r.json(); });
   dataP.then(function (d) { boot(d); start(); }).catch(function (err) { document.body.insertAdjacentHTML('beforeend', '<p style="padding:24px;font-family:system-ui;color:#fff">Não foi possível carregar os dados: ' + esc(err.message) + '</p>'); });

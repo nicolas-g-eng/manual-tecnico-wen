@@ -363,3 +363,31 @@ html { scroll-behavior: smooth; }
 .memo-page .mt th { background: #E9EDF1; } .memo-page .mt .ms td { background: #F1F4F6; color: #111; } .memo-page .mm th { background: #F1F4F6; }
 .memo-bar .btn.pri { box-shadow: none; }
 @media print { body.printing-memo .memo-page { border: 0; } }
+
+/* ===== Seleção e clique: todo botão responde, e o escolhido fica marcado igual ao "Em pé / Deitado" ===== */
+:root { --sel-bg: color-mix(in srgb, var(--accent) 12%, var(--surface)); --sel-ring: 0 0 0 1px var(--accent); }
+.chip.on, .chip[aria-pressed="true"],
+.thm[aria-pressed="true"],
+.axhelp .ax-g button[aria-pressed="true"],
+.opt[aria-selected="true"],
+.btn[aria-pressed="true"],
+.pick[aria-expanded="true"] { border-color: var(--accent) !important; background: var(--sel-bg) !important; color: var(--accent); box-shadow: var(--sel-ring); }
+.axhelp .ax-g button[aria-pressed="true"] b { color: var(--accent); }
+.axhelp .ax-g button { transition: border-color .18s, background .18s, box-shadow .18s, transform .12s; }
+.axhelp .ax-g button:not([aria-pressed="true"]):hover { border-color: var(--text3); }
+.sw-btn { transition: transform .15s var(--ease2), box-shadow .15s, border-color .15s; }
+.sw-btn:hover { transform: scale(1.08); }
+.sw-btn[aria-pressed="true"] { border-color: var(--accent-ink, #fff); box-shadow: 0 0 0 2px var(--text), inset 0 0 0 1px rgba(0,0,0,.18); transform: scale(1.08); }
+.sw-toggle { transition: background .2s, border-color .2s; } .sw-toggle::after { transition: transform .2s var(--ease2), background .2s; }
+.thm, .chip, .btn, .pick, .rbtn, .ibtn, .stp button { transition: background .15s, border-color .15s, box-shadow .15s, color .15s, transform .1s; }
+
+/* pressionar = resposta imediata (mouse e toque) */
+button:not(.seg button):not(.stp button):not(:disabled):active,
+.row:active, .card[data-act]:active, .qk:active { transform: scale(.975); border-color: var(--accent); background-color: var(--accent-soft); }
+.btn.pri:active { background-color: var(--accent); filter: brightness(.92); }
+
+/* confirmação do clique: anel que se expande e some */
+@keyframes tapring { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); } to { box-shadow: 0 0 0 9px transparent; } }
+.tapped { animation: tapring .5s ease-out; }
+.chip.tapped, .thm.tapped, .ax-g button.tapped { animation: none; }
+@media (prefers-reduced-motion: reduce) { .tapped { animation: none; } button:active { transform: none !important; } }
