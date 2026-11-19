@@ -1,0 +1,7 @@
+Fontes incluídas neste aplicativo (arquivos woff2 variáveis, subconjunto latino, obtidos via Fontsource/jsDelivr):
+
+- Public Sans (texto)            — mantida pelo U.S. Web Design System (USWDS) — SIL Open Font License 1.1
+- Big Shoulders Display (títulos) — família Big Shoulders — SIL Open Font License 1.1
+
+Texto completo da licença: https://openfontlicense.org
+As fontes podem ser usadas, incorporadas e redistribuídas com o aplicativo; não podem ser vendidas isoladamente.

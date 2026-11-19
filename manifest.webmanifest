@@ -2,7 +2,7 @@
   "id": "/manual-tecnico-wen",
   "name": "Manual Técnico do Engenheiro — Wen Technology",
   "short_name": "Manual Wen",
-  "description": "Tabelas, normas e 24 calculadoras de engenharia mecânica. Funciona offline.",
+  "description": "Tabelas, normas e 29 calculadoras de engenharia mecânica. Funciona offline.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "./index.html?source=pwa",

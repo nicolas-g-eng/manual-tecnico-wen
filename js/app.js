@@ -1,7 +1,7 @@
 /* Manual Técnico do Engenheiro — Wen Technology — lógica do aplicativo */
 (function () {
   'use strict';
-  var VERSION = '3.0.0';
+  var VERSION = '3.1.0';
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
@@ -218,12 +218,12 @@
   }
   function sheetRow(s, extra) {
     var calc = s.kind === 'calc';
-    return '<button class="row" data-act="open" data-num="' + s.num + '" style="--h:' + CH_HUE[s.ch] + '"><span class="ico chc">' + ic(calc ? 'calc' : 'table') + '</span><span class="tx"><b>' + esc(shortName(s)) + '</b><small>' + esc(s.desc) + '</small></span>' +
-      '<span class="num">' + s.num + '</span>' + ic('next', 's chev') + '</button>';
+    return '<button class="row" data-act="open" data-num="' + s.num + '"><span class="rn">' + s.num + '</span><span class="tx"><b>' + esc(shortName(s)) + '</b><small>' + esc(s.desc) + '</small></span>' +
+      '<span class="kd ' + (calc ? 'calc' : '') + '">' + (calc ? 'ƒx' : 'tabela') + '</span></button>';
   }
   function chCard(c) {
     var n = c.sheets.length, k = c.sheets.filter(function (s) { return s.kind === 'calc'; }).length;
-    return '<button class="card chcard" data-act="chap" data-n="' + c.n + '" style="--h:' + (CH_HUE[c.n] || 214) + '"><span class="ico">' + ic(CH_ICON[c.n] || 'grid', 'l') + '</span><span class="n">CAP. ' + String(c.n).padStart(2, '0') + '</span><b>' + esc(c.title) + '</b><small>' + n + ' abas' + (k ? ' · ' + k + ' calc.' : '') + '</small></button>';
+    return '<button class="card chcard" data-act="chap" data-n="' + c.n + '" style="--h:' + (CH_HUE[c.n] || 214) + '"><span class="ico">' + ic(CH_ICON[c.n] || 'grid', 'l') + '</span><span class="n">' + String(c.n).padStart(2, '0') + '</span><b>' + esc(c.title) + '</b><small>' + n + ' abas' + (k ? ' · ' + k + (k === 1 ? ' calculadora' : ' calculadoras') : '') + '</small></button>';
   }
   function openSheet(title, bodyHtml, onReady) {
     closeSheet(true);
@@ -254,6 +254,7 @@
     var h = '<div class="top" style="min-height:0;padding-bottom:0"></div>' +
       '<section class="hero"><img class="logo" src="' + mediaUrl(D.logo) + '" alt="Wen Technology"><div class="in"><h2>Manual Técnico do Engenheiro Mecânico</h2><p>' + esc(H.sub.split(' — ')[0]) + '</p><span class="ver">' + ic('info', 's') + ' Versão ' + esc((H.ver.match(/Vers[ãa]o\s+([\d.]+)/i) || [0, '3.0'])[1]) + ' · funciona offline</span></div></section>' +
       '<button class="searchbar" data-act="gosearch">' + ic('search') + '<span>Buscar M12, 6205, H7/g6, 4140, O-ring…</span><kbd>/</kbd></button>' +
+      quickHtml() +
       '<div class="stats"><div class="card stat"><b>' + total + '</b><span>Abas de consulta</span></div><div class="card stat"><b>' + calcs + '</b><span>Calculadoras</span></div><div class="card stat"><b>' + CHAP.length + '</b><span>Capítulos</span></div></div>' +
       '<button class="card alert-card ' + (bad ? 'err' : 'ok') + '" data-act="gopanel"><span class="ico">' + ic(bad ? 'warn' : 'okc') + '</span><span style="flex:1"><b>Painel de verificações</b><span>' + (bad ? bad + ' reprovada(s) de ' + checks.length + ' com os dados atuais' : 'Todas as ' + checks.length + ' verificações aprovadas') + '</span></span>' + ic('next', 's') + '</button>';
     var favs = FAV.filter(function (n) { return BYNUM[n]; });
@@ -264,6 +265,13 @@
     h += '<p class="footnote">' + esc(H.aviso || '') + ' ' + esc(H.aviso2 || '') + '</p>';
     return '<div class="view-in">' + h + '</div>';
   }
+  var QUICK = ['3.3', '5.6', '8.4', '11.2', '11.4', '11.5', '11.6', '6.4', '5.11', '8.5', '3.5', '8.7'];
+  function quickHtml() {
+    var items = QUICK.filter(function (n) { return BYNUM[n]; });
+    return '<div class="sect-t">Mais usadas na Berwanger<span class="sp"></span><a href="#/c">todos os capítulos</a></div><div class="quick">' + items.map(function (n) {
+      var s = BYNUM[n]; return '<button class="qk" data-act="open" data-num="' + n + '"><span class="qn">' + n + '</span><b>' + esc(shortName(s).replace(/^Calc\.\s*/, '')) + '</b></button>';
+    }).join('') + '</div>';
+  }
   function miniCard(n) {
     var s = BYNUM[n]; if (!s) return '';
     return '<button class="card mini" data-act="open" data-num="' + n + '" style="--h:' + CH_HUE[s.ch] + '"><span class="badge ' + (s.kind === 'calc' ? 'calc' : '') + '">' + ic(s.kind === 'calc' ? 'calc' : 'table', 's') + ' ' + n + '</span><b>' + esc(shortName(s)) + '</b><small>' + esc(chOf(n).title) + '</small></button>';
@@ -272,7 +280,7 @@
     return topbar('Capítulos', { back: false }) + '<div style="margin-top:8px">' + CHAP.map(function (c) { return accordion(c, false); }).join('') + '</div>';
   }
   function accordion(c, open) {
-    return '<div class="card acc' + (open ? ' open' : '') + '" style="--h:' + (CH_HUE[c.n] || 214) + '"><button class="hd" data-act="acc"><span class="ico chc">' + ic(CH_ICON[c.n] || 'grid') + '</span><span style="flex:1"><b>' + c.n + ' · ' + esc(c.title) + '</b><small>' + c.sheets.length + ' abas</small></span>' + ic('down', 'chv') + '</button><div class="body list">' + c.sheets.map(function (s) { return sheetRow(BYNUM[s.num]); }).join('') + '</div></div>';
+    return '<div class="card acc' + (open ? ' open' : '') + '" style="--h:' + (CH_HUE[c.n] || 214) + '"><button class="hd" data-act="acc"><span class="rn">' + String(c.n).padStart(2, '0') + '</span><span style="flex:1"><b>' + esc(c.title) + '</b><small>' + c.sheets.length + ' abas</small></span>' + ic('down', 'chv') + '</button><div class="body list">' + c.sheets.map(function (s) { return sheetRow(BYNUM[s.num]); }).join('') + '</div></div>';
   }
   function vChapter(n) {
     var c = CHAP.filter(function (x) { return x.n === n; })[0]; if (!c) return vHome();
@@ -430,9 +438,13 @@
   }
   function vCalc(s) {
     var rows = calcModel(s), c = chOf(s.num), fav = isFav(s.num);
-    var h = '<div class="shead" style="--h:' + CH_HUE[s.ch] + '"></div>' + topbar(shortName(s), { kicker: s.num + ' · ' + c.title, right: '<button class="ibtn ' + (fav ? 'on' : '') + '" data-act="fav" data-num="' + s.num + '" aria-label="Favoritar" aria-pressed="' + fav + '">' + ic(fav ? 'starf' : 'star') + '</button>' });
+    var favBtn = '<button class="ibtn ' + (fav ? 'on' : '') + '" data-act="fav" data-num="' + s.num + '" aria-label="Favoritar" aria-pressed="' + fav + '">' + ic(fav ? 'starf' : 'star') + '</button>';
+    var fsg = Number(S.fsGlobal != null ? S.fsGlobal : D.home.fs);
+    var h = '<header class="top"><button class="ibtn" data-act="back" aria-label="Voltar">' + ic('back') + '</button><span class="crumb">Cap. ' + s.ch + ' · ' + esc(c.title) + '</span><span style="flex:1"></span>' + favBtn + '</header>' +
+      '<div class="tb"><div class="tb-n"><b>' + esc(s.num) + '</b><span>calculadora</span></div><div class="tb-t"><h1>' + esc(shortName(s)) + '</h1><p>' + esc(s.desc || '') + '</p></div>' +
+      '<div class="tb-c"><div><small>Unidades</small><b>N · mm · MPa</b></div><div><small>FS padrão</small><b>' + esc(numStr(fsg)) + '</b></div><div><small>Uso</small><b>Pré-dimensionamento</b></div><div><small>Revisão</small><b>v' + esc(VERSION) + '</b></div></div></div>';
     var sub = s.sub_f ? txt(cellV(s, 'B2')) : (s.sub || '');
-    h += '<p class="muted" id="csub" style="font-size:.84rem;margin:2px 4px 8px">' + esc(sub) + '</p>';
+    h += '<p class="fml" id="csub">' + esc(sub) + '</p>';
     h += '<div class="calc-grid"><aside class="card summary" id="sum"></aside><div class="form">';
     var figs = (s.figs || []).slice().sort(function (a, b) { return a.r - b.r; }), fi = 0, open = false;
     function flushFigs(r) { var o = ''; while (fi < figs.length && figs[fi].r <= r) { var f = figs[fi++]; o += '<details class="figd" open><summary>' + ic('image', 's') + esc(f.cap || ('Figura de apoio ' + (fi))) + ic('down', 's chv') + '</summary><div class="fb"><button data-act="zoom" data-src="' + mediaUrl(f.src) + '" style="width:100%"><img decoding="async" width="' + f.w + '" height="' + f.h + '" src="' + mediaUrl(f.src) + '" alt="' + esc(f.cap || 'Figura') + '"></button></div></details>'; } return o; }
@@ -443,7 +455,7 @@
     });
     if (open) h += '</section>';
     h += flushFigs(9999);
-    h += '<div class="actions"><button class="btn pri" data-act="copycalc">' + ic('copy', 's') + ' Copiar resultados</button><button class="btn" data-act="resetcalc">' + ic('reset', 's') + ' Restaurar padrões</button></div>';
+    h += '<div class="actions"><button class="btn pri" data-act="copycalc">' + ic('copy', 's') + ' Copiar resultados</button><button class="btn" data-act="memorial">' + ic('book', 's') + ' Memorial (PDF)</button><button class="btn" data-act="resetcalc">' + ic('reset', 's') + ' Restaurar padrões</button></div>';
     h += '<p class="footnote">' + esc(D.home.aviso || '') + '</p></div></div>';
     return h;
   }
@@ -992,6 +1004,59 @@
     }; f.click();
   }
 
+  // ---------------------------------------------------------------- MEMORIAL DE CÁLCULO (tela + impressão/PDF)
+  function memorialForm(s) {
+    var m = LS.get('memo', {});
+    var f = function (id, l, v, ph) { return '<label class="mf"><small style="display:block;font-size:.72rem;font-weight:650;color:var(--text2);margin:0 2px 4px">' + esc(l) + '</small><span class="inp"><input id="memo-' + id + '" type="text" value="' + esc(v || '') + '" placeholder="' + esc(ph) + '" autocomplete="off"></span></label>'; };
+    openSheet('Memorial de cálculo', '<div style="padding:2px 18px 6px;font-size:.84rem;color:var(--text2)">Gera uma folha com os dados, os resultados e as verificações desta calculadora. Use <b>Imprimir / salvar PDF</b> na tela seguinte.</div><div class="matform" style="padding:4px 18px 8px;display:grid;gap:10px">' +
+      f('p', 'Projeto / OS', m.p, 'Ex.: 025036-1') + f('c', 'Cliente', m.c, '') + f('r', 'Responsável técnico', m.r, '') + f('a', 'ART / CREA', m.a, '') + f('o', 'Observações', m.o, 'Ex.: carga estática, material certificado') +
+      '</div><div class="actions" style="padding:0 18px 14px"><button class="btn pri" data-act="memogen">' + ic('book', 's') + ' Gerar memorial</button></div>');
+  }
+  function memoCollect(s) {
+    var rows = calcModel(s), sec = '', ins = [], outs = [];
+    rows.forEach(function (r) {
+      if (r.k === 'sec') { sec = r.text; return; }
+      if (r.k !== 'f') return;
+      var l = txt(cellV(s, 'B' + r.r)); if (/^\(não usado\)$/i.test(l)) return;
+      var v = cellV(s, 'C' + r.r), u = txt(cellV(s, 'D' + r.r)), n = txt(cellV(s, 'E' + r.r)), o = fmtOut(s, r, v);
+      var it = { sec: sec, l: l, v: o.t, u: (u && u !== '-') ? u : '', n: n, st: typeof v === 'string' && /^[✓✗]/.test(v), ok: typeof v === 'string' && v.indexOf('✓') === 0, main: r.kind === 'main' };
+      (r.kind === 'in' ? ins : outs).push(it);
+    });
+    return { ins: ins, outs: outs };
+  }
+  function memoTable(items, head) {
+    if (!items.length) return '';
+    var last = '', h = '<table class="mt"><thead><tr><th>' + head + '</th><th class="r">Valor</th><th>Unid.</th><th>Observação</th></tr></thead><tbody>';
+    items.forEach(function (x) {
+      if (x.sec && x.sec !== last) { h += '<tr class="ms"><td colspan="4">' + esc(x.sec) + '</td></tr>'; last = x.sec; }
+      if (x.st) h += '<tr class="' + (x.ok ? 'okr' : 'errr') + '"><td>' + esc(x.l) + '</td><td colspan="3"><b>' + esc(x.v) + '</b></td></tr>';
+      else h += '<tr' + (x.main ? ' class="mn"' : '') + '><td>' + esc(x.l) + '</td><td class="r">' + esc(x.v) + '</td><td>' + esc(x.u) + '</td><td class="nt">' + esc(x.n) + '</td></tr>';
+    });
+    return h + '</tbody></table>';
+  }
+  function memorialGen(s) {
+    var g = function (id) { var e = $('#memo-' + id); return e ? e.value.trim() : ''; };
+    var m = { p: g('p'), c: g('c'), r: g('r'), a: g('a'), o: g('o') }; LS.set('memo', m); closeSheet(true);
+    var d = memoCollect(s), now = new Date(), when = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    var sts = d.outs.filter(function (x) { return x.st; }), bad = sts.filter(function (x) { return !x.ok; }).length;
+    var fig = (s.figs && s.figs[0]) ? '<figure class="mfig"><img src="' + mediaUrl(s.figs[0].src) + '" alt=""><figcaption>' + esc(s.figs[0].cap || '') + '</figcaption></figure>' : '';
+    var sub = s.sub_f ? txt(cellV(s, 'B2')) : (s.sub || '');
+    var meta = [['Projeto / OS', m.p], ['Cliente', m.c], ['Responsável técnico', m.r], ['ART / CREA', m.a], ['Data', when], ['Aba', s.num + ' · ' + shortName(s)]];
+    var h = '<div class="memo-bar"><b>Memorial de cálculo</b><button class="btn pri sm" data-act="memoprint">' + ic('download', 's') + ' Imprimir / salvar PDF</button><button class="btn sm" data-act="memoclose">' + ic('close', 's') + ' Fechar</button></div>' +
+      '<article class="memo-page"><header><div class="mh1">MEMORIAL DE CÁLCULO</div><h1>' + esc(s.title || s.name) + '</h1></header>' +
+      '<table class="mm">' + meta.map(function (x, i) { return (i % 2 === 0 ? '<tr>' : '') + '<th>' + esc(x[0]) + '</th><td>' + (x[1] ? esc(x[1]) : '&nbsp;') + '</td>' + (i % 2 === 1 ? '</tr>' : ''); }).join('') + '</table>' +
+      (sub ? '<h2>Formulação</h2><p class="fm">' + esc(sub) + '</p>' : '') + fig +
+      '<h2>Dados de entrada</h2>' + memoTable(d.ins, 'Parâmetro') +
+      '<h2>Resultados e verificações</h2>' + memoTable(d.outs, 'Resultado') +
+      (sts.length ? '<p class="concl ' + (bad ? 'errr' : 'okr') + '"><b>' + (bad ? 'Atenção: ' + bad + ' verificação(ões) reprovada(s) de ' + sts.length + '.' : 'Todas as ' + sts.length + ' verificações atendem.') + '</b></p>' : '') +
+      (m.o ? '<h2>Observações</h2><p>' + esc(m.o) + '</p>' : '') +
+      '<div class="sig"><div><span></span>Responsável técnico</div><div><span></span>Verificação</div></div>' +
+      '<footer>' + esc(D.home.aviso || '') + '<br>Gerado pelo Manual Técnico Wen v' + esc(VERSION) + ' em ' + esc(when) + '.</footer></article>';
+    var ov = document.createElement('div'); ov.id = 'memorial'; ov.className = 'memo-ov'; ov.innerHTML = h; document.body.appendChild(ov);
+  }
+  function memorialPrint() { document.body.classList.add('printing-memo'); var done = function () { document.body.classList.remove('printing-memo'); window.removeEventListener('afterprint', done); }; window.addEventListener('afterprint', done); window.print(); }
+  function memorialClose() { var o = $('#memorial'); if (o) o.remove(); document.body.classList.remove('printing-memo'); }
+
   // ---------------------------------------------------------------- eventos
   var wakeLock = null;
   function applyWake() {
@@ -1053,6 +1118,10 @@
       case 'sumtog': var sm = $('#sum'); sm.dataset.open = sm.classList.contains('open') ? '0' : '1'; sm.classList.toggle('open'); t.setAttribute('aria-expanded', sm.classList.contains('open')); break;
       case 'copycalc': if (s) copyText(calcSummaryText(s)); break;
       case 'resetcalc': if (s) resetCalc(s); break;
+      case 'memorial': if (s) memorialForm(s); break;
+      case 'memogen': if (s) memorialGen(s); break;
+      case 'memoprint': memorialPrint(); break;
+      case 'memoclose': memorialClose(); break;
       case 'cvswap': var row = t.closest('.cv'); row.dataset.inv = row.dataset.inv === '1' ? '0' : '1'; buzz(); cvUpdate(row, s); break;
       case 'theme': S.theme = t.dataset.v; saveSettings(); applyLook(); $$('.thm').forEach(function (b) { b.setAttribute('aria-pressed', b === t); }); break;
       case 'accent': S.accent = t.dataset.v; saveSettings(); applyLook(); $$('.sw-btn').forEach(function (b) { b.setAttribute('aria-pressed', b === t); }); $('#accname').textContent = t.getAttribute('aria-label'); break;
@@ -1086,7 +1155,7 @@
   document.addEventListener('keydown', function (e) {
     var tag = (e.target.tagName || '').toLowerCase();
     if (e.key === '/' && tag !== 'input' && tag !== 'textarea') { e.preventDefault(); go('search'); }
-    if (e.key === 'Escape') { closeSheet(); var lb = $('.lightbox'); if (lb) lb.click(); }
+    if (e.key === 'Escape') { closeSheet(); memorialClose(); var lb = $('.lightbox'); if (lb) lb.click(); }
     if (e.key === 'Enter' && tag === 'input' && e.target.dataset.act === 'numin') e.target.blur();
   });
 

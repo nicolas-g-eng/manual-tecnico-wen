@@ -569,3 +569,41 @@ table.t thead th:first-child { background: color-mix(in srgb, var(--accent) 14%,
 .axhelp .ax-g small { font-size: .72rem; line-height: 1.35; color: var(--text2); }
 .axhelp .hint { margin: 0; font-size: .74rem; }
 @media (max-width: 380px) { .axhelp .ax-g { grid-template-columns: 1fr; } }
+
+/* ---------- Memorial de cálculo (tela + impressão) ---------- */
+.memo-ov { position: fixed; inset: 0; z-index: 120; background: var(--bg); overflow: auto; -webkit-overflow-scrolling: touch; }
+.memo-bar { position: sticky; top: 0; z-index: 2; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: calc(10px + var(--sa-t)) 14px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.memo-bar b { flex: 1; min-width: 140px; }
+.memo-page { background: #fff; color: #111; max-width: 840px; margin: 16px auto 40px; padding: 26px 30px; border-radius: 8px; font: 13.5px/1.45 "Segoe UI", system-ui, sans-serif; box-shadow: var(--shadow); }
+.memo-page .mh1 { font-size: 11px; letter-spacing: .14em; color: #1f4e8c; font-weight: 700; }
+.memo-page h1 { font-size: 19px; margin: 4px 0 14px; line-height: 1.25; }
+.memo-page h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #1f4e8c; margin: 18px 0 6px; border-bottom: 2px solid #1f4e8c; padding-bottom: 3px; }
+.memo-page .fm { margin: 0; color: #333; font-size: 12.5px; }
+.memo-page table { width: 100%; border-collapse: collapse; }
+.memo-page .mm th { text-align: left; width: 17%; font-size: 11px; color: #555; font-weight: 600; padding: 5px 6px; border: 1px solid #ccd3df; background: #f3f6fa; }
+.memo-page .mm td { padding: 5px 8px; border: 1px solid #ccd3df; width: 33%; }
+.memo-page .mt th { font-size: 11px; text-align: left; background: #e8eef7; padding: 5px 6px; border: 1px solid #ccd3df; }
+.memo-page .mt th.r, .memo-page .mt td.r { text-align: right; font-variant-numeric: tabular-nums; }
+.memo-page .mt td { padding: 4px 6px; border: 1px solid #dde3ec; vertical-align: top; }
+.memo-page .mt .nt { color: #666; font-size: 11.5px; }
+.memo-page .mt .ms td { background: #f3f6fa; font-weight: 700; font-size: 11.5px; color: #1f4e8c; }
+.memo-page .mt .mn td { font-weight: 700; }
+.memo-page .okr td, .memo-page .okr.concl { color: #137a45; background: #eaf6ef; }
+.memo-page .errr td, .memo-page .errr.concl { color: #b3261e; background: #fbecea; }
+.memo-page .concl { padding: 8px 10px; border-radius: 6px; margin: 10px 0 0; }
+.memo-page .mfig { margin: 10px 0 0; text-align: center; }
+.memo-page .mfig img { max-width: 100%; max-height: 210px; }
+.memo-page .mfig figcaption { font-size: 11px; color: #666; }
+.memo-page .sig { display: flex; gap: 40px; margin-top: 38px; }
+.memo-page .sig div { flex: 1; text-align: center; font-size: 11px; color: #555; }
+.memo-page .sig span { display: block; border-top: 1px solid #333; margin-bottom: 4px; }
+.memo-page footer { margin-top: 22px; font-size: 10.5px; color: #666; border-top: 1px solid #ccd3df; padding-top: 6px; }
+@media print {
+  body.printing-memo > *:not(#memorial) { display: none !important; }
+  body.printing-memo { background: #fff !important; }
+  body.printing-memo #memorial { position: static; overflow: visible; background: #fff; }
+  body.printing-memo .memo-bar { display: none !important; }
+  body.printing-memo .memo-page { margin: 0; max-width: none; padding: 0; border-radius: 0; box-shadow: none; }
+  body.printing-memo .memo-page tr { break-inside: avoid; }
+  @page { size: A4; margin: 14mm; }
+}
