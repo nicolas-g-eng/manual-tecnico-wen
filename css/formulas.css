@@ -1,0 +1,89 @@
+/* v3.4 — fórmulas editáveis, leitura inequívoca de números e unidades equivalentes.
+   Linguagem "folha de desenho": a fórmula alterada é uma REVISÃO (faixa e etiqueta em âmbar), o resto é régua e tinta azul. */
+
+/* ---- unidades equivalentes: mm⁴ (= cm⁴) -------------------------------------------------- */
+.out .val small.eq, .sum-item b small.eq { display: block; margin: 1px 0 0; font-size: .7rem; font-weight: 600; color: var(--accent); letter-spacing: 0; white-space: nowrap; }
+.field.mainr .val small.eq { font-size: .74rem; }
+.lb-i i.eq { display: block; font-style: normal; font-size: .62rem; color: var(--accent); }
+.echo { margin-top: 4px; font-size: .74rem; font-weight: 600; color: var(--accent); min-height: 0; }
+.echo:empty { display: none; }
+@container (min-width: 560px) { .field.in .echo { grid-column: 2; } }
+.unitnote { margin: 0 0 12px; padding: 6px 12px; border-left: 2px solid var(--accent); background: var(--accent-soft); color: var(--text); font-size: .78rem; line-height: 1.45; border-radius: 0 var(--r-m) var(--r-m) 0; }
+
+/* ---- barra de fórmulas ---------------------------------------------------------------- */
+.fxbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 10px; border: 1px solid var(--line2); border-radius: var(--r-m); background: var(--surface); }
+.fxbar.has { box-shadow: inset 3px 0 0 var(--warn); }
+.fxbar .fxsp { flex: 1 1 8px; }
+.fxbar .fxhint { flex: 1 0 100%; margin: 2px 0 0; font-size: .75rem; line-height: 1.4; color: var(--text2); }
+.fxst { display: inline-flex; align-items: center; gap: 7px; font-size: .78rem; font-weight: 700; color: var(--warn); }
+.fxst i { width: 9px; height: 9px; border: 2px solid var(--warn); transform: rotate(45deg); display: inline-block; }
+.fxk { font-family: var(--display); font-weight: 800; font-size: 1.02em; font-style: italic; letter-spacing: 0; }
+.fxtog[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.fxtog .fxk { margin-right: 2px; }
+
+/* ---- linha de fórmula sob cada campo --------------------------------------------------- */
+.field .fxr { grid-column: 1 / -1; margin-top: 8px; }
+.field .fxr[hidden] { display: none; }
+.field.fxmod { box-shadow: inset 3px 0 0 var(--warn); }
+.fxl { display: flex; align-items: flex-start; gap: 10px; width: 100%; min-height: 38px; padding: 6px 10px; text-align: left; border: 1px dashed var(--line2); border-radius: var(--r-m); background: var(--surface2); color: var(--text); cursor: pointer; transition: border-color .15s, background .15s; }
+.fxl:hover { border-color: var(--accent); background: var(--accent-soft); }
+.fxl:focus-visible, .fxref:focus-visible, .fxed textarea:focus-visible, .fxed input:focus-visible, .fxio textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fxl .fxk { flex: none; min-width: 2.4rem; font-size: .8rem; color: var(--text2); padding-top: 1px; }
+.fxl code, .fxrefs code, .fxorig code, .memo-page code { font-family: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace; font-size: .74rem; line-height: 1.4; overflow-wrap: anywhere; word-break: break-word; }
+.fxl code { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); }
+.fxtag { flex: none; align-self: center; padding: 1px 6px; border: 1px solid var(--warn); border-radius: 2px; color: var(--warn); font-size: .66rem; font-weight: 700; background: var(--warn-soft); }
+
+/* ---- editor inline ---------------------------------------------------------------------- */
+.fxed { padding: 10px 12px 12px; border: 1px solid var(--accent); border-radius: var(--r-m); background: var(--surface); }
+.fxlab { display: block; margin-bottom: 6px; font-size: .8rem; color: var(--text2); }
+.fxlab b { color: var(--text); }
+.fxcell { margin-left: 4px; font-size: .7rem; color: var(--text3); }
+.fxed textarea, .fxio textarea, .fxform textarea { display: block; width: 100%; min-height: 4.6rem; padding: 8px 10px; resize: vertical; border: 1px solid var(--entry-line); border-radius: var(--r-m); background: var(--entry); color: var(--entry-ink); font-family: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace; font-size: .86rem; line-height: 1.45; }
+.fxed textarea[aria-invalid="true"] { border-color: var(--err); }
+.fxrow2 { display: grid; grid-template-columns: 1fr 7rem; gap: 8px; margin-bottom: 8px; }
+.fxrow2 label { font-size: .72rem; font-weight: 650; color: var(--text2); }
+.fxrow2 input { display: block; width: 100%; height: 38px; margin-top: 3px; padding: 0 8px; border: 1px solid var(--entry-line); border-radius: var(--r-m); background: var(--entry); color: var(--entry-ink); font-size: .9rem; font-weight: 600; }
+.fxread { margin: 6px 0 0; font-size: .78rem; line-height: 1.45; color: var(--text2); min-height: 1.2em; }
+.fxread .fxh { color: var(--text); font-style: italic; overflow-wrap: anywhere; }
+.fxread .fxres b { color: var(--accent); font-weight: 700; }
+.fxmsg { margin: 8px 0 0; padding: 6px 10px; border-left: 3px solid var(--line2); border-radius: 0 var(--r-m) var(--r-m) 0; font-size: .8rem; line-height: 1.4; }
+.fxmsg.err { color: var(--err); background: var(--err-soft); border-left-color: var(--err); font-weight: 600; }
+.fxmsg.warn { color: var(--warn); background: var(--warn-soft); border-left-color: var(--warn); }
+.fxmsg.ok { color: var(--ok); background: var(--ok-soft); border-left-color: var(--ok); }
+.fxorig { margin: 8px 0 0; font-size: .74rem; color: var(--text2); }
+.fxbtns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.fxbtns .btn:disabled { opacity: .5; cursor: not-allowed; }
+.fxrefs { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 6px; }
+.fxrefs summary { cursor: pointer; padding: 6px 0; font-size: .78rem; font-weight: 650; color: var(--text2); }
+.fxfind { display: block; margin: 4px 0 6px; }
+.fxfind input { width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--entry-line); border-radius: var(--r-m); background: var(--entry); color: var(--entry-ink); font-size: .84rem; }
+.fxrl { max-height: 14rem; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-m); background: var(--surface); }
+.fxref { display: grid; grid-template-columns: 3.4rem minmax(0, 1fr) auto; align-items: baseline; gap: 8px; width: 100%; padding: 6px 8px; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer; min-height: 36px; }
+.fxref[hidden] { display: none; }
+.fxref:hover { background: var(--accent-soft); }
+.fxref b { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: .72rem; color: var(--accent); }
+.fxref span { font-size: .8rem; font-weight: 550; overflow-wrap: anywhere; }
+.fxref i { font-style: normal; font-size: .72rem; color: var(--text2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) { .fxref { grid-template-columns: 3rem minmax(0, 1fr); } .fxref i { grid-column: 2; white-space: normal; } .fxrow2 { grid-template-columns: 1fr; } }
+
+/* ---- folhas (adicionar linha, exportar/importar) ------------------------------------------ */
+.fxform, .fxio { padding: 4px 18px 16px; display: grid; gap: 10px; }
+.fxio h4 { margin: 8px 0 0; font-family: var(--display); font-size: 1.15rem; font-weight: 700; }
+.fxhint2 { margin: 0; font-size: .8rem; color: var(--text2); line-height: 1.45; }
+.fxhint2 code { font-family: ui-monospace, Consolas, monospace; font-size: .76rem; }
+.fxseg { display: flex; flex-wrap: wrap; gap: 8px; }
+.fxseg .btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.fxform .inp.tall { height: auto; align-items: stretch; }
+.fxform .inp.tall textarea { border: 0; background: transparent; }
+.fxrefs2 small { display: block; margin-bottom: 4px; font-size: .72rem; font-weight: 650; color: var(--text2); }
+
+/* ---- memorial: marca de fórmula alterada ---------------------------------------------------- */
+.memo-page .modr td { box-shadow: inset 3px 0 0 #b26a00; }
+.memo-page .modn { color: #8a5200; font-weight: 700; font-size: 11px; }
+.memo-page .modbar { margin: 10px 0 0; padding: 7px 10px; border: 1px solid #b26a00; border-left-width: 4px; background: #fff6e6; color: #5c3600; font-size: 12px; }
+.memo-page .unitnote { margin: 8px 0 0; font-size: 11.5px; color: #333; border-left: 3px solid #1f4e8c; background: #eef3fa; padding: 5px 8px; }
+.memo-page code { font-size: 10.5px; color: #222; }
+
+@media (prefers-reduced-motion: reduce) { .fxl, .fxref { transition: none; } }
+:root[data-motion="off"] .fxl { transition: none; }
+@media print { .fxbar { display: none !important; } }

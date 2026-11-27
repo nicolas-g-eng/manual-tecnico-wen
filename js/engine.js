@@ -13,7 +13,7 @@
   function parseAddr(a) { var m = /^\$?([A-Z]+)\$?(\d+)$/.exec(a); return { c: colToNum(m[1]), r: +m[2] }; }
 
   // ------------------------------------------------------------ tokenizer
-  var TOK = /\s*(?:("(?:[^"]|"")*")|((?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)|('(?:[^']|'')+'!|[A-Za-zÀ-ÿ_][\w.À-ÿ]*!)|(\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)(?![\w(])|([A-Za-z_][\w.]*)(\()|([A-Za-z_][\w.]*)|(<=|>=|<>|[-+*\/^&=<>%(),]))/y;
+  var TOK = /\s*(?:("(?:[^"]|"")*")|((?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)|('(?:[^']|'')+'!|[A-Za-zÀ-ÿ_][\w.À-ÿ]*!)|(\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)(?![\w(])|([A-Za-zÀ-ÿ_][\w.À-ÿ]*)(\()|([A-Za-zÀ-ÿ_][\w.À-ÿ]*)|(<=|>=|<>|[-+*\/^&=<>%(),;]))/iy;
 
   function tokenize(src) {
     var out = [], m; TOK.lastIndex = 0;
@@ -21,7 +21,11 @@
     while (pos < s.length) {
       TOK.lastIndex = pos;
       m = TOK.exec(s);
-      if (!m) { if (/^\s*$/.test(s.slice(pos))) break; throw new Error('token@' + pos + ' em ' + src); }
+      if (!m) {
+        if (/^\s*$/.test(s.slice(pos))) break;
+        var bad = s.slice(pos).replace(/^\s+/, ''), ch = bad.charAt(0);
+        throw new Error(ch === '"' ? 'Texto entre aspas sem fechar (falta ").' : 'Caractere não reconhecido: "' + ch + '". Use ponto como decimal (2.5), ; ou , entre argumentos e referências como C12.');
+      }
       pos = TOK.lastIndex;
       if (m[1] !== undefined) out.push({ t: 's', v: m[1].slice(1, -1).replace(/""/g, '"') });
       else if (m[2] !== undefined) out.push({ t: 'n', v: parseFloat(m[2]) });
@@ -30,16 +34,33 @@
       else if (m[5] !== undefined) out.push({ t: 'fn', v: m[5].toUpperCase() }), out.push({ t: '(' });
       else if (m[7] !== undefined) {
         var u = m[7].toUpperCase();
-        if (u === 'TRUE') out.push({ t: 'b', v: true }); else if (u === 'FALSE') out.push({ t: 'b', v: false });
+        if (u === 'TRUE' || u === 'VERDADEIRO') out.push({ t: 'b', v: true }); else if (u === 'FALSE' || u === 'FALSO') out.push({ t: 'b', v: false });
+        else if (u === 'PI') out.push({ t: 'n', v: Math.PI });
         else out.push({ t: 'name', v: m[7] });
       } else out.push({ t: m[8] });
     }
     return out;
   }
 
+  // ------------------------------------------------------------ nomes de função (inglês + português)
+  var ALIAS = {
+    'SE': 'IF', 'SEERRO': 'IFERROR', 'E': 'AND', 'OU': 'OR', 'NAO': 'NOT', 'NÃO': 'NOT', 'RAIZ': 'SQRT', 'SOMA': 'SUM',
+    'MÍNIMO': 'MIN', 'MINIMO': 'MIN', 'MÁXIMO': 'MAX', 'MAXIMO': 'MAX', 'MÍN': 'MIN', 'MÁX': 'MAX',
+    'ARRED': 'ROUND', 'TETO': 'CEILING', 'ASSOALHO': 'FLOOR', 'POTÊNCIA': 'POWER', 'POTENCIA': 'POWER',
+    'SEN': 'SIN', 'ASEN': 'ASIN', 'RADIANOS': 'RADIANS', 'GRAUS': 'DEGREES', 'ÍNDICE': 'INDEX', 'INDICE': 'INDEX',
+    'CORRESP': 'MATCH', 'CONT.SE': 'COUNTIF', 'CONT.NÚM': 'COUNT', 'CONT.NUM': 'COUNT', 'MÉDIA': 'AVERAGE', 'MEDIA': 'AVERAGE',
+    'ESCOLHER': 'CHOOSE', 'RESTO': 'MOD'
+  };
+  var FNS = ['IF', 'IFERROR', 'AND', 'OR', 'NOT', 'MIN', 'MAX', 'SUM', 'ABS', 'SQRT', 'PI', 'RADIANS', 'DEGREES', 'SIN', 'COS', 'TAN', 'ASIN', 'ACOS', 'ATAN',
+    'LOG10', 'LN', 'EXP', 'ATAN2', 'ROUND', 'CEILING', 'FLOOR', 'POWER', 'LOWER', 'UPPER', 'LEN', 'CHOOSE', 'INDEX', 'MATCH', 'COUNTIF', 'COUNT',
+    'ISNUMBER', 'ISERROR', 'MOD', 'AVERAGE', 'INT'];
+  var FNSET = {}; FNS.forEach(function (n) { FNSET[n] = 1; });
+  function canonFn(n) { n = n.toUpperCase(); n = ALIAS[n] || n; return FNSET[n] ? n : null; }
+
   // ------------------------------------------------------------ parser
   function parse(src) {
     var tk = tokenize(src), i = 0;
+    if (!tk.length) throw new Error('A fórmula está vazia.');
     function peek() { return tk[i]; }
     function next() { return tk[i++]; }
     function accept(t) { if (tk[i] && tk[i].t === t) { i++; return true; } return false; }
@@ -67,28 +88,31 @@
     function post() { var l = prim(); while (peek() && peek().t === '%') { next(); l = { k: 'bin', o: '/', a: l, b: { k: 'num', v: 100 } }; } return l; }
     function prim() {
       var p = next();
-      if (!p) throw new Error('fim inesperado em ' + src);
+      if (!p) throw new Error('A fórmula termina antes do esperado: falta um valor, uma referência ou um parêntese.');
       if (p.t === 'n') return { k: 'num', v: p.v };
       if (p.t === 's') return { k: 'str', v: p.v };
       if (p.t === 'b') return { k: 'bool', v: p.v };
-      if (p.t === '(') { var e = expr(); if (!accept(')')) throw new Error('falta ) em ' + src); return e; }
+      if (p.t === '(') { var e = expr(); if (!accept(')')) throw new Error('Falta fechar um parêntese ).'); return e; }
       if (p.t === 'fn') {
+        var cn = canonFn(p.v);
+        if (!cn) throw new Error('Função desconhecida: ' + p.v + '. Use por exemplo SE, MIN, MAX, ABS, RAIZ, PI, ARRED, POTENCIA.');
         next(); // '('
         var args = [];
-        if (!accept(')')) { for (;;) { args.push(expr()); if (accept(')')) break; if (!accept(',')) throw new Error('esperava , em ' + src); } }
-        return { k: 'fn', n: p.v, a: args };
+        if (!accept(')')) { for (;;) { args.push(expr()); if (accept(')')) break; if (!accept(',') && !accept(';')) throw new Error('Esperava ; ou , ou ) entre os argumentos de ' + p.v + '(...).'); } }
+        return { k: 'fn', n: cn, a: args };
       }
       var sheet = null;
       if (p.t === 'sh') { sheet = p.v; p = next(); }
       if (p && p.t === 'ref') {
-        var parts = p.v.replace(/\$/g, '').split(':');
+        var parts = p.v.replace(/\$/g, '').toUpperCase().split(':');
         var a = parseAddr(parts[0]), b = parts[1] ? parseAddr(parts[1]) : a;
         return { k: 'ref', sh: sheet, c1: Math.min(a.c, b.c), r1: Math.min(a.r, b.r), c2: Math.max(a.c, b.c), r2: Math.max(a.r, b.r), single: !parts[1] };
       }
-      throw new Error('símbolo inesperado ' + (p && p.t) + ' em ' + src);
+      if (p && p.t === 'name') throw new Error('Nome desconhecido: "' + p.v + '". Use referências de célula como C12 (veja a lista ao lado) ou funções como SE(...).');
+      throw new Error('Símbolo inesperado ("' + (p ? p.t : '') + '"): falta um valor ou uma referência antes dele.');
     }
     var ast = expr();
-    if (i < tk.length) throw new Error('sobra de tokens em ' + src);
+    if (i < tk.length) throw new Error('Sobrou texto depois do fim da fórmula (confira parênteses e operadores).');
     return ast;
   }
 
@@ -347,6 +371,9 @@
         return cnt;
       }
       case 'COUNT': { var cs = 0; for (var q = 0; q < A.length; q++) { var vv = this.ev(A[q], sh); if (isRange(vv)) this.flat(vv).forEach(function (z) { if (typeof z === 'number') cs++; }); else if (typeof vv === 'number') cs++; } return cs; }
+      case 'MOD': { x = num(0); y = num(1); if (isErr(x)) return x; if (isErr(y)) return y; if (y === 0) return E('#DIV/0!'); return x - y * Math.floor(x / y); }
+      case 'INT': return math1(Math.floor);
+      case 'AVERAGE': { var av = numArgs(this, A, sh); if (isErr(av)) return av; if (!av.length) return E('#DIV/0!'); return av.reduce(function (a, b) { return a + b; }, 0) / av.length; }
       case 'ISNUMBER': return typeof one(0) === 'number';
       case 'ISERROR': return isErr(one(0));
     }
@@ -370,11 +397,80 @@
     var parts = s.split('.'), a = parts[0], b = parts[1] || '';
     if (mx > mn) { b = b.replace(/0+$/, ''); while (b.length < mn) b += '0'; }
     var neg = a.charAt(0) === '-'; if (neg) a = a.slice(1);
-    if (thousands) a = a.replace(/\B(?=(\d{3})+(?!\d))/g, dec ? '.' : ',');
+    if (thousands) a = a.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');   // milhar = espaço (nunca ponto): 6 353 não vira 6,353
     var out = (neg ? '-' : '') + a + (b ? (dec ? ',' : '.') + b : '');
     if (out === '-0') out = '0';
     return out;
   }
+
+  // ------------------------------------------------------------ edição de fórmulas: validação, dependências, ciclos
+  function astRefs(n, out) {
+    out = out || [];
+    if (!n) return out;
+    if (n.k === 'ref') out.push(n);
+    else if (n.k === 'neg') astRefs(n.a, out);
+    else if (n.k === 'bin') { astRefs(n.a, out); astRefs(n.b, out); }
+    else if (n.k === 'fn') n.a.forEach(function (x) { astRefs(x, out); });
+    return out;
+  }
+  // Valida só o texto (sintaxe, funções). Devolve { ok, error, ast }
+  Engine.validate = function (text) {
+    var t = String(text == null ? '' : text).trim();
+    if (t.charAt(0) === '=') t = t.slice(1);
+    try { var ast = parse(t); return { ok: true, ast: ast }; }
+    catch (ex) { return { ok: false, error: ex.message }; }
+  };
+  Engine.refsOf = function (ast) { return astRefs(ast, []); };
+  var P2 = Engine.prototype;
+  P2.setRaw = function (sheet, addr, raw) {
+    var s = this.sheets[sheet]; if (!s) return;
+    if (raw === undefined) delete s[addr]; else s[addr] = raw;
+    this.cache = {};
+  };
+  // Existe caminho de dependência de (sheet,addr) de volta para ele mesmo se a célula passar a ter 'raw'?
+  P2.wouldCycle = function (sheet, addr, raw) {
+    var self = this, target = sheet + '!' + addr, seen = {}, budget = 20000;
+    function deps(sh, a, text) {
+      var ast; try { ast = parse(String(text).slice(1)); } catch (e) { return []; }
+      var out = [];
+      astRefs(ast, []).forEach(function (r) {
+        var s2 = r.sh || sh;
+        for (var rr = r.r1; rr <= r.r2; rr++) for (var cc = r.c1; cc <= r.c2; cc++) out.push([s2, numToCol(cc) + rr]);
+      });
+      return out;
+    }
+    function visit(list) {
+      for (var i = 0; i < list.length; i++) {
+        var k = list[i][0] + '!' + list[i][1];
+        if (k === target) return true;
+        if (seen[k] || --budget < 0) continue; seen[k] = 1;
+        if (k in self.over) continue;                       // valor digitado: não depende de ninguém
+        var rw = self.raw(list[i][0], list[i][1]);
+        if (typeof rw === 'string' && rw.charAt(0) === '=' && visit(deps(list[i][0], list[i][1], rw))) return true;
+      }
+      return false;
+    }
+    if (typeof raw !== 'string' || raw.charAt(0) !== '=') return false;
+    return visit(deps(sheet, addr, raw));
+  };
+  // Teste completo de uma fórmula nova SEM aplicar. { ok, error, warn, value }
+  P2.check = function (sheet, addr, raw) {
+    if (typeof raw !== 'string' || raw.charAt(0) !== '=') return { ok: true, value: raw };
+    var v = Engine.validate(raw);
+    if (!v.ok) return { ok: false, error: v.error };
+    var refs = astRefs(v.ast, []);
+    for (var i = 0; i < refs.length; i++) {
+      var sn = refs[i].sh || sheet;
+      if (!this.sheets[sn]) return { ok: false, error: 'A aba "' + sn + '" não existe.' };
+    }
+    if (this.wouldCycle(sheet, addr, raw)) return { ok: false, error: 'Referência circular: essa fórmula depende, direta ou indiretamente, da própria célula ' + addr + '.' };
+    var s = this.sheets[sheet], old = s[addr], had = (addr in s), val;
+    s[addr] = raw; this.cache = {};
+    try { val = this.cell(sheet, addr); } finally { if (had) s[addr] = old; else delete s[addr]; this.cache = {}; }
+    var out = { ok: true, value: val };
+    if (isErr(val)) out.warn = 'A fórmula é válida, mas com os valores atuais o resultado é ' + val.e + (val.e === '#DIV/0!' ? ' (divisão por zero)' : val.e === '#NUM!' ? ' (conta impossível, ex.: raiz de negativo)' : val.e === '#VALUE!' ? ' (misturou texto e número)' : '') + '.';
+    return out;
+  };
 
   Engine.fmtNum = fmtNum; Engine.isErr = isErr; Engine.parse = parse; Engine.numToCol = numToCol; Engine.colToNum = colToNum;
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine; else root.Engine = Engine;

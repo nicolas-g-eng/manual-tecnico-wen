@@ -1,34 +1,17 @@
-MANUAL TÉCNICO DO ENGENHEIRO — WEN TECHNOLOGY (aplicativo instalável / PWA)  ·  versão 3.1
+MANUAL TECNICO WEN v3.4 - formulas editaveis + leitura inequivoca de numeros
 
-NOVIDADES DA 3.1
-- Visual novo: "folha de desenho" (carimbo em cada calculadora, índice de capítulos, células de entrada
-  amarelas com tinta azul, amarelo-sinal só nas ações). Temas claro, escuro e preto.
-- Fontes locais (funcionam offline): Big Shoulders Display e Public Sans, licença SIL OFL 1.1 (ver fonts/LICENCAS.txt).
-- 5 calculadoras novas, com figura:
-    11.4 Escolha de Acessório (linga de cabo, corrente G80, cinta, manilha, olhal DIN 580, pela carga)
-    11.5 Centro de Gravidade (carga em cada ponto de içamento)
-    11.6 Pega-chapa e Tenaz (aperto por atrito)
-    5.11 Flange Parafusado (grupo de parafusos sob momento, axial e cortante)
-    8.7  Peso e Custo (chapa, barra, tubo; orçamento rápido)
-- Botão "Memorial (PDF)" em toda calculadora: gera a folha com dados, resultados e verificações para imprimir ou salvar em PDF.
-- Home com atalhos para as calculadoras mais usadas.
+O QUE MUDOU
+- Botao "Editar formulas" em TODAS as 29 calculadoras: mostra a formula de cada linha, edita (Enter aplica, Esc cancela), valida e recalcula na hora.
+  Tambem edita o valor padrao das entradas, adiciona "linha propria" e restaura o original (por linha ou da calculadora inteira).
+  Alteracoes ficam salvas no aparelho; "Exportar / importar" leva para outro aparelho. O Memorial usa as formulas atuais e marca as alteradas.
+- Numeros: milhar agora com ESPACO (6 353), nunca ponto; virgula e sempre decimal. Entradas aceitam 9.53 e 9,53 (e 1 000,5); o app mostra "lido como ...".
+- Inercia e modulo resistente mostram os dois: 6 353 mm4 (= 0,635 cm4); mm3 (= cm3). Nota: mm4 -> cm4 divide por 10 000; mm3 -> cm3 divide por 1 000.
+- 3.3: criterios de flecha L/800, 500, 360, 300, 250, 100 em lista; unidade da secao personalizada (mm2 / mm4) aparece certa.
 
-COMO PUBLICAR A ATUALIZAÇÃO NO GITHUB (nicolas-g-eng/manual-tecnico-wen)
-1. No GitHub, abra o repositório > Add file > Upload files.
-2. Arraste o CONTEÚDO desta pasta (não a pasta em si), incluindo css/, js/, fonts/, media/, data.json, sw.js, index.html...
-3. Commit. O GitHub Pages publica sozinho. Abra o app uma vez com internet para ele atualizar o cache offline.
+COMO PUBLICAR (GitHub, sem git)
+1. Abra o repositorio nicolas-g-eng/manual-tecnico-wen > Add file > Upload files.
+2. Arraste o CONTEUDO desta pasta (index.html, sw.js, data.json, css/, js/, leia-me.txt). Nao arraste a pasta em si.
+3. Commit. Abra o app uma vez com internet para atualizar o cache offline (o cache novo e wen-manual-v34-formulas-01).
+OBS: arquivos novos: css/formulas.css. Arquivos substituidos: index.html, sw.js, data.json, js/app.js, js/engine.js, css/tema.css.
 
-COMO INSTALAR NO CELULAR (Android, Samsung Galaxy / Z Fold, iPhone)
-1. Publique esta pasta em qualquer hospedagem com HTTPS (grátis: Netlify Drop, GitHub Pages, Cloudflare Pages, Vercel).
-   - Netlify: acesse app.netlify.com/drop e arraste a pasta inteira. Você recebe um link https://...
-2. Abra o link no celular:
-   - Android (Chrome / Samsung Internet): toque em "Instalar aplicativo" (botão que aparece na tela) ou menu ⋮ > Instalar app.
-   - iPhone (Safari): Compartilhar > Adicionar à Tela de Início.
-3. O ícone da Wen Technology aparece na tela inicial. Abre em tela cheia, com animação de abertura, e funciona sem internet.
-
-Suas preferências (tema, cor, tamanho do texto, FS global), favoritos e valores digitados nas calculadoras são salvos automaticamente no aparelho.
-
-Para gerar um APK/AAB para a Play Store a partir do link publicado, use o PWABuilder (pwabuilder.com).
-
-AVISO: ferramenta de pré-dimensionamento. Capacidades de acessórios são valores de REFERÊNCIA: vale a etiqueta do acessório.
-A responsabilidade técnica (ART) é do engenheiro.
+AVISO: pre-dimensionamento. A responsabilidade tecnica (ART) e do engenheiro.

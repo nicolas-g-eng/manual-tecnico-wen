@@ -1,7 +1,7 @@
 /* Manual Técnico do Engenheiro — Wen Technology — lógica do aplicativo */
 (function () {
   'use strict';
-  var VERSION = '3.1.0';
+  var VERSION = '3.4.0';
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
@@ -39,6 +39,8 @@
 
   function boot(data) {
     D = data; SHEETS = D.sheets; CHAP = D.chapters;
+    // tabelas de referência: "9.806,6500" vira "9 806,6500" (ponto de milhar lido como decimal já causou erro de 1000x)
+    Object.keys(SHEETS).forEach(function (k) { var sh0 = SHEETS[k]; if (sh0.kind === 'calc') return; (sh0.blocks || []).forEach(function (b) { if (b.t !== 'table') return; b.rows.forEach(function (r) { for (var i = 0; i < r.length; i++) { var c = r[i]; if (typeof c === 'string') { var m = /^(-?\d{1,3}(?:\.\d{3})+)(,\d+)?$/.exec(c); if (m) r[i] = m[1].replace(/\./g, ' ') + (m[2] || ''); } } }); }); });
     Object.keys(SHEETS).forEach(function (k) { BYNUM[k] = SHEETS[k]; });
     var sh = {}; Object.keys(D.engine).forEach(function (k) { sh[k] = D.engine[k]; });
     Object.keys(SHEETS).forEach(function (k) { if (SHEETS[k].kind === 'calc') sh[SHEETS[k].name] = SHEETS[k].cells; });
@@ -49,6 +51,7 @@
     if (S.fsGlobal == null) S.fsGlobal = D.home.fs;
     ENG.setInput('Início', 'D16', Number(S.fsGlobal));
     Object.keys(INP).forEach(function (n) { Object.keys(INP[n]).forEach(function (a) { ENG.setInput(n, a, INP[n][a]); }); });
+    fxBoot();
   }
 
   var BRAND_SVG = '<img class="brand-svg" src="icons/icon-192.png?v=5" alt="" width="52" height="52">';
@@ -86,7 +89,7 @@
     if (v == null || v === '') return '';
     if (typeof v !== 'number') return String(v);
     var d = MAT_FIELDS[c][3] || 0;
-    return v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: Math.max(d, 2) });
+    return fmtGrp(v, d, Math.max(d, 2));
   }
   function matRows() { return MATS.map(function (row) { return row.map(function (v, c) { return matFmt(v, c); }); }); }
   function matSave() { LS.set('mat', MATS); applyMats(); }
@@ -150,7 +153,40 @@
     toast._t = setTimeout(function () { t.classList.remove('on'); }, 2200);
   }
   function numStr(v) { var s = String(parseFloat(Number(v).toPrecision(12))); return S.comma ? s.replace('.', ',') : s; }
-  function parseNum(s) { s = String(s).trim().replace(/\s/g, ''); if (s === '' || s === '-') return null; if (/^-?[1-9]\d{0,2}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '').replace(',', '.'); else s = s.replace(',', '.'); var n = Number(s); return isNaN(n) ? NaN : n; }
+  // Lê o que a pessoa digita: aceita 9.53 e 9,53 (decimal), 1 000,5 / 1.000,5 / 1,000.5 (milhar + decimal) e 1.000 (= mil, padrão pt-BR).
+  // Quando a leitura difere do que foi digitado, a tela mostra "lido como ..." (ver echoText).
+  function parseNum(s) {
+    s = String(s).trim().replace(/[\s  ']/g, ''); if (s === '' || s === '-') return null;
+    var c = s.lastIndexOf(','), d = s.lastIndexOf('.');
+    if (c >= 0 && d >= 0) { if (c > d) s = s.replace(/\./g, '').replace(',', '.'); else s = s.replace(/,/g, ''); }
+    else if (c >= 0) { if (/^-?\d{1,3}(,\d{3}){2,}$/.test(s)) s = s.replace(/,/g, ''); else s = s.replace(',', '.'); }
+    else if (d >= 0) { if (/^-?[1-9]\d{0,2}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); }
+    var n = Number(s); return isNaN(n) ? NaN : n;
+  }
+  // Milhar SEMPRE com espaço (6 353), nunca ponto: ponto de milhar foi lido como decimal e deu erro de leitura 1000x.
+  function grpInt(p) { return p.length > 3 ? p.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : p; }
+  function fmtGrp(v, minD, maxD) {
+    if (typeof v !== 'number' || !isFinite(v)) return String(v);
+    var s = v.toFixed(maxD), neg = s.charAt(0) === '-'; if (neg) s = s.slice(1);
+    var p = s.split('.'), f = p[1] || ''; while (f.length > minD && f.charAt(f.length - 1) === '0') f = f.slice(0, -1);
+    var o = grpInt(p[0]) + (f ? ',' + f : ''); return (neg && /[1-9]/.test(o) ? '-' : '') + o;
+  }
+  // Equivalência de unidades: mm⁴ → cm⁴ (÷ 10 000) e mm³ → cm³ (÷ 1 000)
+  var UNIT_NOTE = 'mm⁴ → cm⁴: dividir por 10 000 · mm³ → cm³: dividir por 1 000';
+  function eqOf(v, unit) {
+    if (typeof v !== 'number' || !isFinite(v)) return '';
+    var u = String(unit == null ? '' : unit).trim(), d, t;
+    if (/^mm(⁴|4|\^4)$/.test(u)) { d = 10000; t = 'cm⁴'; } else if (/^mm(³|3|\^3)$/.test(u)) { d = 1000; t = 'cm³'; } else return '';
+    var x = v / d, a = Math.abs(x), nf = a >= 1000 ? '#,##0' : a >= 100 ? '#,##0.0' : a >= 10 ? '#,##0.00' : '#,##0.000';
+    return '= ' + (a !== 0 && a < 0.001 ? fmtSig(x) : Engine.fmtNum(x, nf, true)) + ' ' + t;
+  }
+  function sheetHasEq(s) { var c = s.cells || {}; for (var a in c) if (a.charAt(0) === 'D' && /^mm(⁴|³)$/.test(String(c[a]))) return true; return false; }
+  function echoText(raw, n, unit) {
+    var out = [], canon = numStr(n);
+    if (String(raw).trim().replace(/\s/g, '') !== canon) out.push('lido como ' + fmtGrp(n, 0, 6) + (unit && unit !== '-' ? ' ' + unit : ''));
+    var e = eqOf(n, unit); if (e) out.push('(' + e + ')');
+    return out.join(' ');
+  }
   function fmtSig(v) { if (!isFinite(v)) return '—'; var s = String(parseFloat(v.toPrecision(7))); if (s.indexOf('e') >= 0) s = v.toExponential(4); return S.comma ? s.replace('.', ',') : s; }
   function hi(text, terms) {
     var t = String(text); if (!terms || !terms.length) return esc(t);
@@ -444,8 +480,11 @@
       '<div class="tb"><div class="tb-n"><b>' + esc(s.num) + '</b><span>calculadora</span></div><div class="tb-t"><h1>' + esc(shortName(s)) + '</h1><p>' + esc(s.desc || '') + '</p></div>' +
       '<div class="tb-c"><div><small>Unidades</small><b>N · mm · MPa</b></div><div><small>FS padrão</small><b>' + esc(numStr(fsg)) + '</b></div><div><small>Uso</small><b>Pré-dimensionamento</b></div><div><small>Revisão</small><b>v' + esc(VERSION) + '</b></div></div></div>';
     var sub = s.sub_f ? txt(cellV(s, 'B2')) : (s.sub || '');
+    if (FX_LAST !== s.num) { FXMODE = false; FXEDIT = null; FX_LAST = s.num; }
     h += '<p class="fml" id="csub">' + esc(sub) + '</p>';
-    h += '<div class="calc-grid"><aside class="card summary" id="sum"></aside><div class="form">';
+    if (sheetHasEq(s)) h += '<p class="unitnote"><b>Unidades:</b> ' + esc(UNIT_NOTE) + '. Milhar com espaço (6 353 = seis mil trezentos e cinquenta e três); a vírgula é sempre decimal.</p>';
+    h += '<div class="fxbar' + (FXMODE ? ' on' : '') + (fxCount(s) ? ' has' : '') + '" id="fxbar" role="toolbar" aria-label="Fórmulas desta calculadora">' + fxBarHtml(s) + '</div>';
+    h += '<div class="calc-grid"><aside class="card summary" id="sum"></aside><div class="form' + (FXMODE ? ' fxon' : '') + '">';
     var figs = (s.figs || []).slice().sort(function (a, b) { return a.r - b.r; }), fi = 0, open = false;
     function flushFigs(r) { var o = ''; while (fi < figs.length && figs[fi].r <= r) { var f = figs[fi++]; o += '<details class="figd" open><summary>' + ic('image', 's') + esc(f.cap || ('Figura de apoio ' + (fi))) + ic('down', 's chv') + '</summary><div class="fb"><button data-act="zoom" data-src="' + mediaUrl(f.src) + '" style="width:100%"><img decoding="async" width="' + f.w + '" height="' + f.h + '" src="' + mediaUrl(f.src) + '" alt="' + esc(f.cap || 'Figura') + '"></button></div></details>'; } return o; }
     rows.forEach(function (r) {
@@ -455,7 +494,7 @@
     });
     if (open) h += '</section>';
     h += flushFigs(9999);
-    h += '<div class="actions"><button class="btn pri" data-act="copycalc">' + ic('copy', 's') + ' Copiar resultados</button><button class="btn" data-act="memorial">' + ic('book', 's') + ' Memorial (PDF)</button><button class="btn" data-act="resetcalc">' + ic('reset', 's') + ' Restaurar padrões</button></div>';
+    h += '<div class="actions"><button class="btn pri" data-act="copycalc">' + ic('copy', 's') + ' Copiar resultados</button><button class="btn" data-act="memorial">' + ic('book', 's') + ' Memorial (PDF)</button><button class="btn fxtog" data-act="fxtoggle" aria-pressed="' + FXMODE + '"><span class="fxk" aria-hidden="true">ƒx</span> Editar fórmulas</button><button class="btn" data-act="resetcalc">' + ic('reset', 's') + ' Restaurar padrões</button></div>';
     h += '<p class="footnote">' + esc(D.home.aviso || '') + '</p></div></div><div class="livebar" id="livebar" aria-live="polite"></div>';
     return h;
   }
@@ -463,11 +502,11 @@
     var k = r.kind, cls = 'field ' + (k === 'in' ? 'in' : k === 'main' ? 'mainr out-f' : 'out-f') + (r.stt ? ' stt' : '');
     var h = '<div class="' + cls + '" data-r="' + r.r + '">';
     if (k === 'in') {
-      h += '<div class="lab"><span data-l></span><span class="tag" data-g hidden>FS global</span></div><div class="ctl" data-ctl></div><div class="hint" data-nt></div>';
+      h += '<div class="lab"><span data-l></span><span class="tag" data-g hidden>FS global</span></div><div class="ctl" data-ctl></div><div class="echo" data-echo aria-live="polite"></div><div class="hint" data-nt></div>';
     } else {
       h += '<div class="out"><span class="lab" data-l></span><span class="val" data-v></span></div><div class="hint" data-nt></div>';
     }
-    return h + '</div>';
+    return h + '<div class="fxr" data-fxr hidden></div></div>';
   }
   function ctlHtml(s, r) {
     var v = cellV(s, 'C' + r.r), unit = txt(cellV(s, 'D' + r.r)), ov = ENG.hasOverride(s.name, 'C' + r.r), h = '';
@@ -510,16 +549,18 @@
         var ctl = $('[data-ctl]', el), focused = ctl.contains(document.activeElement);
         if (full || !focused) { var active = document.activeElement, typing = focused && active && /^(INPUT|TEXTAREA)$/.test(active.tagName); if (!focused || !typing) { ctl.innerHTML = ctlHtml(s, r); if (focused && active && active.tagName === 'BUTTON') { var nb = $('.seg [aria-pressed=\"true\"]', ctl) || $('button', ctl); if (nb) nb.focus({ preventScroll: true }); } var sgm = $('.seg', ctl); if (sgm) { requestAnimationFrame(function () { requestAnimationFrame(function () { sgm.style.setProperty('--i', sgm.dataset.to); }); }); } } }
         else { var u = $('.u', ctl); if (u) u.textContent = unit && unit !== '-' ? unit : ''; }
+        if (!focused) { var ec = $('[data-echo]', el); if (ec) { var eq0 = typeof v === 'number' ? eqOf(v, unit) : ''; ec.textContent = eq0 ? '(' + eq0 + ')' : ''; } }
         var g = $('[data-g]', el); if (g) g.hidden = !(r.rawF && !ENG.hasOverride(s.name, 'C' + r.r));
       } else {
         var o = fmtOut(s, r, v), V = $('[data-v]', el);
         if (typeof v === 'string' && /^[✓✗]/.test(v)) { V.className = 'val'; V.innerHTML = statusHtml(v); }
         else if (o.err) { V.className = 'val errv'; V.textContent = '—'; V.title = o.err; }
         else if (typeof v === 'string' && v.length > 22) { V.className = 'val txt'; V.textContent = v; }
-        else { V.className = 'val'; V.innerHTML = esc(o.t) + (unit && unit !== '-' && o.t !== '' ? '<small>' + esc(unit) + '</small>' : ''); }
+        else { V.className = 'val'; var eqs = eqOf(v, unit); V.innerHTML = esc(o.t) + (unit && unit !== '-' && o.t !== '' ? '<small>' + esc(unit) + '</small>' : '') + (eqs ? '<small class=\"eq\">(' + esc(eqs) + ')</small>' : ''); }
         var sig = (typeof v === 'string') ? v : o.t; if (r.kind !== 'in') { if (el.dataset.prev !== undefined && el.dataset.prev !== sig) { V.classList.remove('tick'); void V.offsetWidth; V.classList.add('tick'); } el.dataset.prev = sig; }
       }
-      if (r.kind === 'main' || r.stt) sumRows.push({ label: label, v: v, o: fmtOut(s, r, v), unit: unit, stt: r.stt });
+      fxField(s, el, r);
+      if (r.kind === 'main' || r.stt) sumRows.push({ label: label, v: v, o: fmtOut(s, r, v), unit: unit, stt: r.stt, eq: eqOf(v, unit) });
     });
     var S2 = $('#sum');
     if (S2) {
@@ -529,14 +570,14 @@
       S2.innerHTML = '<button class="sum-h" data-act="sumtog" aria-expanded="' + open + '"><h3>' + ic('gauge', 's') + 'Resultados</h3>' + (nst ? '<span class="status ' + (oks === nst ? 'ok' : 'err') + '">' + ic(oks === nst ? 'okc' : 'errc') + oks + '/' + nst + ' ok</span>' : '') + ic('down', 's chv') + '</button><div class="sum-b">' + (sumRows.length ? sumRows.map(function (x) {
         if (x.stt && typeof x.v === 'string') return '<div class="sum-item"><span>' + esc(x.label) + '</span>' + statusHtml(x.v) + '</div>';
         var tk = (SUMPREV[s.num + x.label] !== undefined && SUMPREV[s.num + x.label] !== x.o.t) ? ' class="tick"' : ''; SUMPREV[s.num + x.label] = x.o.t;
-        return '<div class="sum-item"><span>' + esc(x.label) + '</span><b' + tk + '>' + esc(x.o.t) + (x.unit && x.unit !== '-' && x.o.t !== '—' ? '<small>' + esc(x.unit) + '</small>' : '') + '</b></div>';
+        return '<div class="sum-item"><span>' + esc(x.label) + '</span><b' + tk + '>' + esc(x.o.t) + (x.unit && x.unit !== '-' && x.o.t !== '—' ? '<small>' + esc(x.unit) + '</small>' : '') + (x.eq ? '<small class=\"eq\">(' + esc(x.eq) + ')</small>' : '') + '</b></div>';
       }).join('') : '<div class="muted" style="font-size:.82rem">Preencha os campos para ver os resultados.</div>') + '</div>';
     }
     var LB = $('#livebar');
     if (LB) {
       var lbm = sumRows.filter(function (x) { return !x.stt; }).slice(0, 2), lbs = sumRows.filter(function (x) { return x.stt; });
       var lbok = lbs.filter(function (x) { return typeof x.v === 'string' && x.v.indexOf('\u2713') === 0; }).length;
-      LB.innerHTML = lbm.map(function (m) { return '<div class="lb-i"><small>' + esc(m.label) + '</small><b>' + esc(m.o.t) + (m.unit && m.unit !== '-' ? '<i>' + esc(m.unit) + '</i>' : '') + '</b></div>'; }).join('') + (lbs.length ? '<span class="status ' + (lbok === lbs.length ? 'ok' : 'err') + '">' + ic(lbok === lbs.length ? 'okc' : 'errc') + lbok + '/' + lbs.length + '</span>' : '');
+      LB.innerHTML = lbm.map(function (m) { return '<div class="lb-i"><small>' + esc(m.label) + '</small><b>' + esc(m.o.t) + (m.unit && m.unit !== '-' ? '<i>' + esc(m.unit) + '</i>' : '') + (m.eq ? '<i class=\"eq\">(' + esc(m.eq) + ')</i>' : '') + '</b></div>'; }).join('') + (lbs.length ? '<span class="status ' + (lbok === lbs.length ? 'ok' : 'err') + '">' + ic(lbok === lbs.length ? 'okc' : 'errc') + lbok + '/' + lbs.length + '</span>' : '');
     }
     if (s.sub_f) { var cs = $('#csub'); if (cs) cs.textContent = txt(cellV(s, 'B2')); }
   }
@@ -557,9 +598,10 @@
       else if (r.k === 'f') {
         var l = txt(cellV(s, 'B' + r.r)); if (/^\(não usado\)$/i.test(l)) return;
         var v = cellV(s, 'C' + r.r), u = txt(cellV(s, 'D' + r.r)), o = fmtOut(s, r, v);
-        out.push(l + ': ' + o.t.replace(/^[✓✗]\s*/, function (m) { return m; }) + (u && u !== '-' ? ' ' + u : ''));
+        out.push(l + ': ' + o.t.replace(/^[✓✗]\s*/, function (m) { return m; }) + (u && u !== '-' ? ' ' + u : '') + (eqOf(v, u) ? ' (' + eqOf(v, u) + ')' : ''));
       }
     });
+    if (sheetHasEq(s)) out.push('', UNIT_NOTE); if (fxCount(s)) out.push('', 'ATENÇÃO: esta calculadora usa fórmulas alteradas pelo usuário (' + fxCount(s) + ').');
     out.push('', 'Wen Technology — Manual Técnico do Engenheiro');
     return out.join('\n');
   }
@@ -621,7 +663,7 @@
     Object.keys(SHEETS).forEach(function (k) { delete SHEETS[k]._m; });
     IDX = null;
   }
-  function fnum(v) { if (v == null || v === '') return ''; return typeof v === 'number' ? v.toLocaleString('pt-BR', { maximumFractionDigits: 4 }) : String(v); }
+  function fnum(v) { if (v == null || v === '') return ''; return typeof v === 'number' ? fmtGrp(v, 0, 4) : String(v); }
   function rnum(x) { if (typeof x === 'number') return x; var n = parseNum(String(x == null ? '' : x)); return n == null || isNaN(n) ? null : n; }
   // formulário genérico: campos [{l, num, unit, req, v}] -> Promise-like callback
   function formSheet(title, fields, opts, onSave, onDel) {
@@ -854,6 +896,7 @@
 
   function barsAt(row) { return { ch: 'Barras', items: function () { return pBars().map(function (x) { var v = {}; v[row] = x.D; x.vals = v; return x; }); } }; }
   function chapaAt(row) { return { ch: 'Chapas', items: function () { var k = blk('4.3', /^Bitola/); if (!k) return []; return k.rows.map(function (r) { var t = rnum(r[1]); if (!t) return null; var v = {}; v[row] = t; return { name: String(r[0]), sub: 't = ' + fnum(t) + ' mm', vals: v }; }).filter(Boolean); } }; }
+  PRESETS['3.3'] = [{ at: 25, title: 'Critério da flecha admissível (L ÷ N)', hint: 'Escolha o divisor N. Para uma flecha fixa em mm, use Editar fórmulas e troque a fórmula de "Flecha admissível".', srcs: [{ ch: 'Critérios usuais', items: function () { return [[800, 'rigoroso (padrão desta calculadora)'], [500, 'equipamento sensível'], [360, 'pisos'], [300, 'estruturas em geral'], [250, 'uso geral'], [100, 'mínimo aceito (balanços, só informativo)']].map(function (x) { return { name: 'L ÷ ' + x[0], sub: x[1], vals: { 25: x[0] } }; }); } }] }];
   PRESETS['3.7'] = [{ at: 20, title: 'Diâmetro de barra da tabela', hint: 'Diâmetros comerciais de barras redondas.', srcs: [barsAt(20)] }];
   PRESETS['3.8'] = [{ at: 8, title: 'Diâmetro de barra da tabela', hint: 'Diâmetros comerciais de barras redondas.', srcs: [barsAt(8)] }];
   PRESETS['7.2'] = [{ at: 7, title: 'Diâmetro nominal da tabela', hint: 'Diâmetros comerciais de barras e pinos.', srcs: [barsAt(7), { ch: 'Pinos e furos', items: function () { var k = blk('5.9', /^Ø nominal/); if (!k) return []; return k.rows.map(function (r) { var d = rnum(r[0]); return d ? { name: 'Ø ' + fnum(d) + ' mm', sub: 'pinos e furos normalizados', vals: { 7: d } } : null; }).filter(Boolean); } }] }];
@@ -1011,14 +1054,14 @@
   }
 
   function exportData() {
-    var blob = new Blob([JSON.stringify({ app: 'wen-manual', v: VERSION, settings: S, fav: FAV, recent: REC, inputs: INP, cv: LS.get('cv', {}), mat: LS.get('mat', null), lst: LST, ptab: PTAB, lib: LIBSEL }, null, 1)], { type: 'application/json' });
+    var blob = new Blob([JSON.stringify({ app: 'wen-manual', v: VERSION, settings: S, fav: FAV, recent: REC, inputs: INP, cv: LS.get('cv', {}), mat: LS.get('mat', null), lst: LST, ptab: PTAB, lib: LIBSEL, fx: FX }, null, 1)], { type: 'application/json' });
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'manual-wen-backup.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
   function importData() {
     var f = document.createElement('input'); f.type = 'file'; f.accept = 'application/json,.json';
     f.onchange = function () {
       var rd = new FileReader(); rd.onload = function () {
-        try { var d = JSON.parse(rd.result); if (d.app !== 'wen-manual') throw 0; if (d.settings) LS.set('settings', d.settings); LS.set('fav', d.fav || []); LS.set('recent', d.recent || []); LS.set('inputs', d.inputs || {}); LS.set('cv', d.cv || {}); if (d.mat) LS.set('mat', d.mat); LS.set('lst', d.lst || {}); LS.set('ptab', d.ptab || {}); LS.set('lib', d.lib || {}); toast('Backup restaurado'); setTimeout(function () { location.reload(); }, 600); }
+        try { var d = JSON.parse(rd.result); if (d.app !== 'wen-manual') throw 0; if (d.settings) LS.set('settings', d.settings); LS.set('fav', d.fav || []); LS.set('recent', d.recent || []); LS.set('inputs', d.inputs || {}); LS.set('cv', d.cv || {}); if (d.mat) LS.set('mat', d.mat); LS.set('lst', d.lst || {}); LS.set('ptab', d.ptab || {}); LS.set('lib', d.lib || {}); LS.set('fx', d.fx || {}); toast('Backup restaurado'); setTimeout(function () { location.reload(); }, 600); }
         catch (e) { toast('Arquivo de backup inválido'); }
       }; rd.readAsText(f.files[0]);
     }; f.click();
@@ -1039,7 +1082,8 @@
       if (r.k !== 'f') return;
       var l = txt(cellV(s, 'B' + r.r)); if (/^\(não usado\)$/i.test(l)) return;
       var v = cellV(s, 'C' + r.r), u = txt(cellV(s, 'D' + r.r)), n = txt(cellV(s, 'E' + r.r)), o = fmtOut(s, r, v);
-      var it = { sec: sec, l: l, v: o.t, u: (u && u !== '-') ? u : '', n: n, st: typeof v === 'string' && /^[✓✗]/.test(v), ok: typeof v === 'string' && v.indexOf('✓') === 0, main: r.kind === 'main' };
+      var uu = (u && u !== '-') ? u : '', eqm = eqOf(v, u);
+      var it = { mod: fxMod(s, 'C' + r.r), sec: sec, l: l, v: o.t, u: uu + (eqm ? ' (' + eqm + ')' : ''), n: n, st: typeof v === 'string' && /^[✓✗]/.test(v), ok: typeof v === 'string' && v.indexOf('✓') === 0, main: r.kind === 'main' };
       (r.kind === 'in' ? ins : outs).push(it);
     });
     return { ins: ins, outs: outs };
@@ -1049,15 +1093,16 @@
     var last = '', h = '<table class="mt"><thead><tr><th>' + head + '</th><th class="r">Valor</th><th>Unid.</th><th>Observação</th></tr></thead><tbody>';
     items.forEach(function (x) {
       if (x.sec && x.sec !== last) { h += '<tr class="ms"><td colspan="4">' + esc(x.sec) + '</td></tr>'; last = x.sec; }
-      if (x.st) h += '<tr class="' + (x.ok ? 'okr' : 'errr') + '"><td>' + esc(x.l) + '</td><td colspan="3"><b>' + esc(x.v) + '</b></td></tr>';
-      else h += '<tr' + (x.main ? ' class="mn"' : '') + '><td>' + esc(x.l) + '</td><td class="r">' + esc(x.v) + '</td><td>' + esc(x.u) + '</td><td class="nt">' + esc(x.n) + '</td></tr>';
+      var modTag = x.mod ? '<b class="modn">Fórmula alterada pelo usuário.</b> ' : '';
+      if (x.st) h += '<tr class="' + (x.ok ? 'okr' : 'errr') + (x.mod ? ' modr' : '') + '"><td>' + esc(x.l) + '</td><td colspan="3"><b>' + esc(x.v) + '</b>' + (x.mod ? ' <span class="modn">Fórmula alterada pelo usuário</span>' : '') + '</td></tr>';
+      else h += '<tr class="' + (x.main ? 'mn' : '') + (x.mod ? ' modr' : '') + '"><td>' + esc(x.l) + '</td><td class="r">' + esc(x.v) + '</td><td>' + esc(x.u) + '</td><td class="nt">' + modTag + esc(x.n) + '</td></tr>';
     });
     return h + '</tbody></table>';
   }
   function memorialGen(s) {
     var g = function (id) { var e = $('#memo-' + id); return e ? e.value.trim() : ''; };
     var m = { p: g('p'), c: g('c'), r: g('r'), a: g('a'), o: g('o') }; LS.set('memo', m); closeSheet(true);
-    var d = memoCollect(s), now = new Date(), when = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    var mods = fxModList(s), d = memoCollect(s), now = new Date(), when = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     var sts = d.outs.filter(function (x) { return x.st; }), bad = sts.filter(function (x) { return !x.ok; }).length;
     var fig = (s.figs && s.figs[0]) ? '<figure class="mfig"><img src="' + mediaUrl(s.figs[0].src) + '" alt=""><figcaption>' + esc(s.figs[0].cap || '') + '</figcaption></figure>' : '';
     var sub = s.sub_f ? txt(cellV(s, 'B2')) : (s.sub || '');
@@ -1066,8 +1111,11 @@
       '<article class="memo-page"><header><div class="mh1">MEMORIAL DE CÁLCULO</div><h1>' + esc(s.title || s.name) + '</h1></header>' +
       '<table class="mm">' + meta.map(function (x, i) { return (i % 2 === 0 ? '<tr>' : '') + '<th>' + esc(x[0]) + '</th><td>' + (x[1] ? esc(x[1]) : '&nbsp;') + '</td>' + (i % 2 === 1 ? '</tr>' : ''); }).join('') + '</table>' +
       (sub ? '<h2>Formulação</h2><p class="fm">' + esc(sub) + '</p>' : '') + fig +
+      (mods.length ? '<p class="modbar"><b>Atenção:</b> este memorial usa ' + mods.length + (mods.length === 1 ? ' fórmula alterada' : ' fórmulas alteradas') + ' pelo usuário, diferente(s) da planilha original. As linhas afetadas estão marcadas com "fórmula alterada pelo usuário".</p>' : '') +
       '<h2>Dados de entrada</h2>' + memoTable(d.ins, 'Parâmetro') +
       '<h2>Resultados e verificações</h2>' + memoTable(d.outs, 'Resultado') +
+      (sheetHasEq(s) ? '<p class="unitnote"><b>Unidades:</b> ' + esc(UNIT_NOTE) + '.</p>' : '') +
+      (mods.length ? '<h2>Fórmulas alteradas pelo usuário</h2><table class="mt"><thead><tr><th>Item (célula)</th><th>Fórmula usada neste memorial</th><th>Fórmula original</th></tr></thead><tbody>' + mods.map(function (x) { return '<tr class="modr"><td>' + esc(x.l) + ' (' + esc(x.a) + ')' + (x.custom ? '<br><span class="modn">linha própria do usuário</span>' : '') + '</td><td>' + (fxIsF(x.cur) && fxHuman(s, x.cur) !== x.cur ? esc(fxHuman(s, x.cur)) + '<br>' : '') + '<code>' + esc(x.cur) + '</code></td><td>' + (x.custom ? 'não existe na planilha' : (fxIsF(x.orig) && fxHuman(s, x.orig) !== x.orig ? esc(fxHuman(s, x.orig)) + '<br>' : '') + '<code>' + esc(x.orig || '(vazio)') + '</code>') + '</td></tr>'; }).join('') + '</tbody></table>' : '') +
       (sts.length ? '<p class="concl ' + (bad ? 'errr' : 'okr') + '"><b>' + (bad ? 'Atenção: ' + bad + ' verificação(ões) reprovada(s) de ' + sts.length + '.' : 'Todas as ' + sts.length + ' verificações atendem.') + '</b></p>' : '') +
       (m.o ? '<h2>Observações</h2><p>' + esc(m.o) + '</p>' : '') +
       '<div class="sig"><div><span></span>Responsável técnico</div><div><span></span>Verificação</div></div>' +
@@ -1076,6 +1124,295 @@
   }
   function memorialPrint() { document.body.classList.add('printing-memo'); var done = function () { document.body.classList.remove('printing-memo'); window.removeEventListener('afterprint', done); }; window.addEventListener('afterprint', done); window.print(); }
   function memorialClose() { var o = $('#memorial'); if (o) o.remove(); document.body.classList.remove('printing-memo'); }
+
+  // ---------------------------------------------------------------- FÓRMULAS EDITÁVEIS (modo "Editar fórmulas")
+  // As alterações ficam em localStorage ('wen.fx') por calculadora: { "<aba>": { c: {C50: "=..."|número|texto}, add: [{r,l,f,u}] } }.
+  // Tudo passa pelo motor próprio (Engine): nada de eval/Function sobre texto livre.
+  var FX = LS.get('fx', {}), FXORIG = {}, FXMODE = false, FXEDIT = null, FX_LAST = null, FX_ROW0 = 1000;
+  function fxSave() {
+    Object.keys(FX).forEach(function (k) { var d = FX[k]; if (!d || (!Object.keys(d.c || {}).length && !(d.add || []).length)) delete FX[k]; });
+    LS.set('fx', FX);
+  }
+  function fxIsF(raw) { return typeof raw === 'string' && raw.charAt(0) === '='; }
+  function fxData(s, create) { var d = FX[s.name]; if (!d && create) d = FX[s.name] = { c: {}, add: [] }; if (d) { d.c = d.c || {}; d.add = d.add || []; } return d; }
+  function fxMod(s, a) { var d = FX[s.name]; if (!d) return false; if (d.c && (a in d.c)) return true; var r = +String(a).replace(/\D/g, ''); return r >= FX_ROW0 && (d.add || []).some(function (x) { return x.r === r; }); }
+  function fxCount(s) { var d = FX[s.name]; return d ? Object.keys(d.c || {}).length + (d.add || []).length : 0; }
+  function fxOrig(s, a) { var o = FXORIG[s.name] = FXORIG[s.name] || {}; if (!(a in o)) o[a] = { v: s.cells[a], had: (a in s.cells) }; return o[a]; }
+  function fxTouch(s) { delete s._m; ENG.setOpts({}); }
+  function fxSetCell(s, a, raw) {
+    var o = fxOrig(s, a), d = fxData(s, true);
+    if (o.had && raw === o.v) delete d.c[a]; else d.c[a] = raw;
+    ENG.setRaw(s.name, a, raw); fxTouch(s); fxSave();
+  }
+  function fxRestoreCell(s, a) {
+    var o = FXORIG[s.name] && FXORIG[s.name][a], d = fxData(s, false);
+    if (o) ENG.setRaw(s.name, a, o.had ? o.v : undefined);
+    if (d) delete d.c[a];
+    fxTouch(s); fxSave();
+  }
+  function fxApplyAdd(s) {   // garante as linhas próprias no modelo e nas células
+    var d = FX[s.name];
+    s.rows = s.rows.filter(function (r) { return !(r.r >= FX_ROW0); });
+    Object.keys(s.cells).forEach(function (a) { if (+a.replace(/\D/g, '') >= FX_ROW0) ENG.setRaw(s.name, a, undefined); });
+    if (d && d.add && d.add.length) {
+      s.rows.push({ k: 'sec', r: FX_ROW0, text: 'LINHAS PRÓPRIAS (fórmulas do usuário)' });
+      d.add.forEach(function (x) {
+        s.rows.push({ k: 'f', r: x.r, kind: 'calc', nf: 'General', bold: false, global: false, custom: true });
+        ENG.setRaw(s.name, 'B' + x.r, x.l); ENG.setRaw(s.name, 'C' + x.r, x.f); ENG.setRaw(s.name, 'D' + x.r, x.u || '');
+      });
+    }
+    fxTouch(s);
+  }
+  function fxRestoreAll(s) {
+    var d = FX[s.name]; if (!d) return;
+    Object.keys(d.c || {}).forEach(function (a) { var o = FXORIG[s.name] && FXORIG[s.name][a]; if (o) ENG.setRaw(s.name, a, o.had ? o.v : undefined); });
+    delete FX[s.name]; fxApplyAdd(s); fxSave();
+  }
+  function fxBoot() {
+    fxSheets().forEach(function (s) {
+      var d = FX[s.name]; if (!d) return;
+      Object.keys(d.c || {}).forEach(function (a) {
+        var raw = d.c[a];
+        if (fxIsF(raw) && !Engine.validate(raw).ok) { delete d.c[a]; return; }
+        fxOrig(s, a); ENG.setRaw(s.name, a, raw);
+      });
+      d.add = (d.add || []).filter(function (x) { return x && x.r >= FX_ROW0 && fxIsF(x.f) && Engine.validate(x.f).ok; });
+      fxApplyAdd(s);
+    });
+  }
+  function fxSheets() { return Object.keys(SHEETS).map(function (k) { return SHEETS[k]; }).filter(function (s) { return s.kind === 'calc'; }); }
+  function fxRaw(s, a) { var v = s.cells[a]; return v == null ? '' : String(v); }
+  function fxLabel(s, rn) { var l = txt(cellV(s, 'B' + rn)).replace(/\s+/g, ' ').trim(); return l; }
+  // "=$C$22*$C$21/4" -> "[Carga concentrada P] * [Vão L] / 4" (referências lidas pelo rótulo da linha)
+  function fxHuman(s, f) {
+    var re = /(^|[^\w.À-ÿ'])((?:'[^']+'!|[A-Za-zÀ-ÿ_][\w.À-ÿ]*!)?)\$?([A-Za-z]{1,3})\$?(\d+)(?![\w(])/g;
+    return String(f).split(/("(?:[^"]|"")*")/).map(function (p, i) {
+      if (i % 2) return p;
+      return p.replace(re, function (m, pre, sh, col, row) {
+        if (sh || pre === ':' || col.toUpperCase() !== 'C') return m;
+        var l = fxLabel(s, row); if (!l || /^\(não usado\)$/i.test(l)) return m;
+        if (l.length > 42) l = l.slice(0, 41) + '…';
+        return pre + '[' + l + ']';
+      });
+    }).join('');
+  }
+  function fxValTxt(s, rn, v) {
+    var r = calcModel(s).filter(function (x) { return x.r === rn; })[0] || { nf: 'General' }, o = fmtOut(s, r, v), u = txt(cellV(s, 'D' + rn));
+    if (o.err) return o.err;
+    var e = eqOf(v, u);
+    return o.t + (u && u !== '-' && o.t !== '' && typeof v !== 'string' ? ' ' + u : '') + (e ? ' (' + e + ')' : '');
+  }
+  // texto digitado -> valor guardado: '=...' fórmula | número | texto
+  function fxParse(text, wantNumber) {
+    var t = String(text).trim();
+    if (t === '') return { err: 'Digite uma fórmula (comece com =) ou um valor.' };
+    if (t.charAt(0) === '=') return { raw: t, f: true };
+    var n = parseNum(t);
+    if (n !== null && !isNaN(n) && /^[-+]?[\d\s.,]+$/.test(t)) return { raw: n, f: false };
+    if (wantNumber) return { err: 'Valor numérico inválido. Use 9.53 ou 9,53; para uma conta comece com =.' };
+    return { raw: t, f: false };
+  }
+  function fxKindNum(s, r) { return r.kind === 'in' && !r.items && (r.num || typeof cellV(s, 'C' + r.r) === 'number'); }
+
+  function fxBarHtml(s) {
+    var n = fxCount(s), on = FXMODE;
+    return '<button class="btn sm fxtog" data-act="fxtoggle" aria-pressed="' + on + '"><span class="fxk" aria-hidden="true">ƒx</span> ' + (on ? 'Editando fórmulas' : 'Editar fórmulas') + '</button>' +
+      (n ? '<span class="fxst" role="status"><i aria-hidden="true"></i>Fórmulas alteradas · ' + n + (n === 1 ? ' item' : ' itens') + '</span>' : '') +
+      '<span class="fxsp"></span>' +
+      (on ? '<button class="btn sm" data-act="fxaddrow">+ Linha própria</button>' : '') +
+      '<button class="btn sm" data-act="fxio">Exportar / importar</button>' +
+      (n ? '<button class="btn sm" data-act="fxrestoreall" data-arm="0">Restaurar original</button>' : '') +
+      (on ? '<p class="fxhint">Toque em uma linha para ver e alterar a fórmula. Enter aplica, Esc cancela. Decimal com ponto (2.5). Funções: SE, MIN, MAX, ABS, RAIZ, PI, ARRED, POTENCIA, E, OU.</p>' : '');
+  }
+  function fxBarRefresh(s) {
+    var b = $('#fxbar'); if (b) { b.innerHTML = fxBarHtml(s); b.classList.toggle('on', FXMODE); b.classList.toggle('has', fxCount(s) > 0); }
+    $$('[data-act="fxtoggle"]').forEach(function (x) { x.setAttribute('aria-pressed', FXMODE); });
+    var f = $('.calc-grid .form'); if (f) f.classList.toggle('fxon', FXMODE);
+  }
+  // linha de fórmula sob cada campo (só no modo editar)
+  function fxField(s, el, r) {
+    var box = $('[data-fxr]', el); if (!box) return;
+    if (!FXMODE) { if (!box.hidden) { box.hidden = true; box.innerHTML = ''; box.dataset.ed = ''; } el.classList.remove('fxm', 'fxmod'); return; }
+    var a = 'C' + r.r, mod = fxMod(s, a); el.classList.add('fxm'); el.classList.toggle('fxmod', mod);
+    if (box.dataset.ed === '1') return;
+    var raw = fxRaw(s, a), isF = fxIsF(raw), lab = fxLabel(s, r.r);
+    box.hidden = false;
+    box.innerHTML = '<button type="button" class="fxl" data-act="fxedit" data-r="' + r.r + '" aria-label="Editar ' + esc(r.kind === 'in' ? 'valor padrão' : 'fórmula') + ' de ' + esc(lab) + '">' +
+      '<span class="fxk" aria-hidden="true">' + (isF ? 'ƒx' : (r.kind === 'in' ? 'padrão' : 'valor')) + '</span><code>' + esc(raw === '' ? '(vazio)' : raw) + '</code>' +
+      (mod ? '<span class="fxtag">' + (r.custom ? 'linha própria' : 'alterada') + '</span>' : '') + '</button>';
+  }
+  function fxRefList(s, selfR, q) {
+    var out = [];
+    calcModel(s).forEach(function (r) {
+      if (r.k !== 'f' || r.r === selfR) return;
+      var l = fxLabel(s, r.r); if (!l || /^\(não usado\)$/i.test(l)) return;
+      out.push('<button type="button" class="fxref" data-act="fxins" data-ref="$C$' + r.r + '" data-f="' + esc(fold(l + ' c' + r.r)) + '"><b>C' + r.r + '</b><span>' + esc(l) + '</span><i>' + esc(fxValTxt(s, r.r, cellV(s, 'C' + r.r))) + '</i></button>');
+    });
+    return out.join('');
+  }
+  function fxOpen(s, rn) {
+    var el = $('.field[data-r="' + rn + '"]'); if (!el) return;
+    fxCloseEditor(false);
+    var r = calcModel(s).filter(function (x) { return x.r === rn; })[0]; if (!r) return;
+    var a = 'C' + rn, raw = fxRaw(s, a), mod = fxMod(s, a), box = $('[data-fxr]', el), o = FXORIG[s.name] && FXORIG[s.name][a];
+    var lab = fxLabel(s, rn), d = FX[s.name], ce = r.custom && d ? d.add.filter(function (x) { return x.r === rn; })[0] : null;
+    FXEDIT = { s: s.num, r: rn }; box.dataset.ed = '1'; box.hidden = false;
+    box.innerHTML = '<div class="fxed" role="group" aria-label="Editar ' + esc(lab) + '">' +
+      '<label class="fxlab" for="fxta">' + (r.kind === 'in' && !fxIsF(raw) ? 'Valor padrão de ' : 'Fórmula de ') + '<b>' + esc(lab) + '</b> <span class="fxcell">célula ' + a + '</span></label>' +
+      (r.custom ? '<div class="fxrow2"><label>Rótulo<input id="fx-lab" type="text" value="' + esc(ce ? ce.l : lab) + '" autocomplete="off"></label><label>Unidade<input id="fx-un" type="text" value="' + esc(ce ? ce.u : '') + '" autocomplete="off"></label></div>' : '') +
+      '<textarea id="fxta" rows="3" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" data-act="fxin" aria-describedby="fxmsg fxread">' + esc(raw) + '</textarea>' +
+      '<p class="fxread" id="fxread" aria-live="polite"></p><p class="fxmsg" id="fxmsg" role="alert" hidden></p>' +
+      (mod && o && !r.custom ? '<p class="fxorig">Original: <code>' + esc(o.had ? String(o.v) : '(vazio)') + '</code></p>' : '') +
+      '<div class="fxbtns"><button type="button" class="btn pri sm" data-act="fxapply">Aplicar</button><button type="button" class="btn sm" data-act="fxcancel">Cancelar</button>' +
+      (mod && !r.custom ? '<button type="button" class="btn sm" data-act="fxrestore">Restaurar original</button>' : '') +
+      (r.custom ? '<button type="button" class="btn sm dng" data-act="fxdelrow">Excluir linha</button>' : '') + '</div>' +
+      '<details class="fxrefs"' + (innerWidth >= 720 ? ' open' : '') + '><summary>Variáveis desta calculadora (toque para inserir)</summary><label class="filter fxfind"><input type="search" id="fxf" data-act="fxfind" placeholder="Filtrar por nome ou célula (ex.: vão, C21)" autocomplete="off"></label><div class="fxrl" id="fxrl">' + fxRefList(s, rn) + '</div></details></div>';
+    var ta = $('#fxta', box); ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) { }
+    fxLive(s);
+  }
+  function fxCloseEditor(refocus) {
+    if (!FXEDIT) return; var s = BYNUM[FXEDIT.s], rn = FXEDIT.r; FXEDIT = null;
+    var el = $('.field[data-r="' + rn + '"]'); if (el) { var box = $('[data-fxr]', el); if (box) box.dataset.ed = ''; }
+    if (s) { refreshCalc(s, false); if (refocus && el) { var b = $('.fxl', el); if (b) b.focus({ preventScroll: true }); } }
+  }
+  function fxEvaluate(s, rn) {   // lê o formulário do editor e testa SEM aplicar
+    var ta = $('#fxta'); if (!ta) return null;
+    var r = calcModel(s).filter(function (x) { return x.r === rn; })[0], p = fxParse(ta.value, fxKindNum(s, r) && !/^\s*=/.test(ta.value));
+    if (p.err) return { ok: false, error: p.err };
+    var chk = ENG.check(s.name, 'C' + rn, p.raw);
+    if (!chk.ok) return chk;
+    chk.raw = p.raw; chk.isF = p.f; return chk;
+  }
+  function fxLive(s) {
+    if (!FXEDIT) return; var rn = FXEDIT.r, c = fxEvaluate(s, rn), msg = $('#fxmsg'), rd = $('#fxread'), ap = $('[data-act="fxapply"]'), ta = $('#fxta');
+    if (!msg || !rd) return;
+    if (!c.ok) { msg.hidden = false; msg.className = 'fxmsg err'; msg.textContent = c.error; rd.textContent = ''; if (ta) ta.setAttribute('aria-invalid', 'true'); if (ap) ap.disabled = true; return; }
+    if (ta) ta.removeAttribute('aria-invalid'); if (ap) ap.disabled = false;
+    if (c.warn) { msg.hidden = false; msg.className = 'fxmsg warn'; msg.textContent = c.warn; } else { msg.hidden = true; msg.textContent = ''; }
+    var human = c.isF ? fxHuman(s, c.raw) : '';
+    rd.innerHTML = (human && human !== c.raw ? '<span class="fxh">' + esc(human) + '</span> ' : '') + '<span class="fxres">Resultado agora: <b>' + esc(fxValTxt(s, rn, c.value)) + '</b></span>';
+  }
+  function fxApply(s) {
+    if (!FXEDIT) return; var rn = FXEDIT.r, c = fxEvaluate(s, rn);
+    if (!c.ok) { fxLive(s); var ta = $('#fxta'); if (ta) ta.focus(); return; }
+    var r = calcModel(s).filter(function (x) { return x.r === rn; })[0], d = fxData(s, true);
+    if (r.custom) {
+      var lb = ($('#fx-lab') || {}).value, un = ($('#fx-un') || {}).value, ce = d.add.filter(function (x) { return x.r === rn; })[0];
+      if (!fxIsF(c.raw)) { var m0 = $('#fxmsg'); m0.hidden = false; m0.className = 'fxmsg err'; m0.textContent = 'A linha própria precisa de uma fórmula (comece com =).'; return; }
+      if (ce) { ce.l = (lb || '').trim() || 'Linha própria'; ce.u = (un || '').trim(); ce.f = c.raw; } fxApplyAdd(s); fxSave();
+    } else {
+      fxSetCell(s, 'C' + rn, c.raw);
+      if (r.kind === 'in') clearInput(s, 'C' + rn);   // valor novo vira o padrão e aparece na tela
+    }
+    FXEDIT = null; var el = $('.field[data-r="' + rn + '"]'); if (el) { var bx = $('[data-fxr]', el); if (bx) bx.dataset.ed = ''; }
+    if (r.custom) { rerenderKeep(); } else { refreshCalc(s, true); fxBarRefresh(s); var b2 = el && $('.fxl', el); if (b2) b2.focus({ preventScroll: true }); }
+    toast(r.kind === 'in' && !fxIsF(c.raw) ? 'Valor padrão alterado' : 'Fórmula aplicada e recalculada');
+  }
+  var fxT;
+  function fxInsert(id, ref) {
+    var ta = document.getElementById(id); if (!ta) return;
+    var a = ta.selectionStart == null ? ta.value.length : ta.selectionStart, b = ta.selectionEnd == null ? a : ta.selectionEnd;
+    if (!ta.value.trim()) { ta.value = '=' + ref; a = ta.value.length; } else { ta.value = ta.value.slice(0, a) + ref + ta.value.slice(b); a += ref.length; }
+    ta.focus(); try { ta.setSelectionRange(a, a); } catch (e) { }
+  }
+  function rerenderKeep() { var y = window.scrollY; popping = true; render(); window.scrollTo(0, y); }
+  function fxRestoreOne(s) {
+    if (!FXEDIT) return; var rn = FXEDIT.r; fxRestoreCell(s, 'C' + rn); var r = calcModel(s).filter(function (x) { return x.r === rn; })[0];
+    if (r && r.kind === 'in') clearInput(s, 'C' + rn);
+    var el = $('.field[data-r="' + rn + '"]'); FXEDIT = null; if (el) { var bx = $('[data-fxr]', el); if (bx) bx.dataset.ed = ''; }
+    refreshCalc(s, true); fxBarRefresh(s); toast('Original restaurado');
+  }
+  function fxDelRow(s) {
+    if (!FXEDIT) return; var rn = FXEDIT.r, d = fxData(s, false); if (!d) return;
+    d.add = d.add.filter(function (x) { return x.r !== rn; }); FXEDIT = null; fxApplyAdd(s); fxSave(); rerenderKeep(); toast('Linha própria excluída');
+  }
+  function fxToggle(s) {
+    FXMODE = !FXMODE; if (!FXMODE) { FXEDIT = null; }
+    $$('.field[data-r]').forEach(function (el) { var b = $('[data-fxr]', el); if (b) b.dataset.ed = ''; });
+    refreshCalc(s, true); fxBarRefresh(s);
+    toast(FXMODE ? 'Editar fórmulas ligado: toque numa linha' : 'Editar fórmulas desligado');
+  }
+  // ---- linha própria
+  function fxAddRowForm(s) {
+    openSheet('Adicionar linha própria', '<div class="matform fxform"><p class="fxhint2">Cria um resultado novo nesta calculadora. Use referências de célula (ex.: <code>$C$50</code>) ou os nomes das variáveis pela lista do editor. A linha entra no memorial.</p>' +
+      '<label class="mf"><small>Rótulo</small><span class="inp"><input id="fxn-l" type="text" placeholder="Ex.: Flecha admissível fixa" autocomplete="off"></span></label>' +
+      '<label class="mf"><small>Fórmula</small><span class="inp tall"><textarea id="fxn-f" rows="3" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="=$C$21/300" data-act="fxnin"></textarea></span></label>' +
+      '<label class="mf"><small>Unidade</small><span class="inp"><input id="fxn-u" type="text" placeholder="mm" autocomplete="off"></span></label>' +
+      '<p class="fxmsg" id="fxn-m" role="alert" hidden></p>' +
+      '<div class="fxrefs2"><small>Variáveis (toque para inserir)</small><div class="fxrl" id="fxn-rl">' + fxRefList(s, -1).replace(/data-act="fxins"/g, 'data-act="fxnins"') + '</div></div>' +
+      '<div class="actions"><button class="btn pri" data-act="fxnadd">Adicionar linha</button></div></div>');
+    var l = $('#fxn-l'); if (l) l.focus();
+  }
+  function fxAddRowDo(s) {
+    var l = $('#fxn-l').value.trim(), f = $('#fxn-f').value.trim(), u = $('#fxn-u').value.trim(), m = $('#fxn-m'), d = fxData(s, true);
+    function bad(t) { m.hidden = false; m.className = 'fxmsg err'; m.textContent = t; }
+    if (!l) return bad('Dê um nome (rótulo) para a linha.');
+    if (f.charAt(0) !== '=') f = '=' + f;
+    var nr = FX_ROW0 + 1 + d.add.reduce(function (mx, x) { return Math.max(mx, x.r - FX_ROW0); }, 0);
+    var c = ENG.check(s.name, 'C' + nr, f); if (!c.ok) return bad(c.error);
+    d.add.push({ r: nr, l: l, f: f, u: u }); fxApplyAdd(s); fxSave(); closeSheet(true); rerenderKeep(); toast('Linha própria adicionada');
+  }
+  // ---- exportar / importar (JSON)
+  function fxExportObj(all, s) {
+    var out = { app: 'wen-manual-formulas', v: 1, versao: VERSION, data: new Date().toISOString().slice(0, 10), sheets: {} };
+    Object.keys(FX).forEach(function (k) { if (all || (s && k === s.name)) { var d = FX[k]; if (d && (Object.keys(d.c || {}).length || (d.add || []).length)) out.sheets[k] = { c: d.c, add: d.add }; } });
+    return out;
+  }
+  function fxIOForm(s) {
+    openSheet('Exportar e importar fórmulas', '<div class="fxio">' +
+      '<h4>Exportar</h4><p class="fxhint2">Leva as alterações para outro aparelho. Cole o texto lá em Importar.</p>' +
+      '<div class="fxseg" role="group" aria-label="O que exportar"><button class="btn sm" data-act="fxscope" data-v="1" aria-pressed="true">Esta calculadora</button><button class="btn sm" data-act="fxscope" data-v="0" aria-pressed="false">Todas as calculadoras</button></div>' +
+      '<textarea id="fxx" rows="6" readonly spellcheck="false" aria-label="Alterações em JSON"></textarea>' +
+      '<div class="fxbtns"><button class="btn pri sm" data-act="fxcopy">Copiar</button><button class="btn sm" data-act="fxdl">Baixar arquivo</button></div>' +
+      '<h4>Importar</h4><p class="fxhint2">Substitui as alterações das calculadoras que vierem no texto. Fórmulas inválidas são ignoradas e listadas.</p>' +
+      '<textarea id="fxi" rows="5" spellcheck="false" placeholder="Cole aqui o texto exportado" aria-label="Texto para importar"></textarea>' +
+      '<div class="fxbtns"><button class="btn pri sm" data-act="fximport">Importar texto</button><button class="btn sm" data-act="fxfile">Escolher arquivo</button></div>' +
+      '<p class="fxmsg" id="fxio-m" role="status" hidden></p></div>');
+    fxIOFill(s, true);
+  }
+  function fxIOFill(s, one) { var x = $('#fxx'); if (x) x.value = JSON.stringify(fxExportObj(!one, s), null, 1); $$('.fxseg .btn').forEach(function (b) { b.setAttribute('aria-pressed', (b.dataset.v === '1') === !!one); }); }
+  function fxImportObj(obj, s0) {
+    var rep = { ok: 0, skip: [], sheets: 0 };
+    if (!obj || obj.app !== 'wen-manual-formulas' || !obj.sheets) throw new Error('Texto não reconhecido: não é uma exportação de fórmulas do Manual Wen.');
+    Object.keys(obj.sheets).forEach(function (name) {
+      var s = fxSheets().filter(function (x) { return x.name === name; })[0]; if (!s) { rep.skip.push(name + ': calculadora não existe nesta versão'); return; }
+      var src = obj.sheets[name] || {}; fxRestoreAll(s); rep.sheets++;
+      var d = fxData(s, true);
+      (src.add || []).forEach(function (x) {
+        if (!x || !(x.r >= FX_ROW0) || typeof x.f !== 'string' || d.add.some(function (y) { return y.r === x.r; })) return;
+        var v = Engine.validate(x.f); if (!v.ok) { rep.skip.push(name + ' linha ' + x.l + ': ' + v.error); return; }
+        d.add.push({ r: x.r, l: String(x.l || 'Linha própria'), f: x.f, u: String(x.u || '') });
+      });
+      fxApplyAdd(s);
+      Object.keys(src.c || {}).forEach(function (a) {
+        if (!/^[A-Z]{1,2}\d{1,4}$/.test(a)) return;
+        var raw = src.c[a];
+        if (a.charAt(0) !== 'C' || +a.slice(1) >= FX_ROW0) { rep.skip.push(name + ' ' + a + ': célula não editável'); return; }
+        if (fxIsF(raw)) { var c = ENG.check(s.name, a, raw); if (!c.ok) { rep.skip.push(name + ' ' + a + ': ' + c.error); return; } }
+        else if (typeof raw !== 'number' && typeof raw !== 'string') return;
+        fxOrig(s, a); fxSetCell(s, a, raw); rep.ok++;
+        var rr = calcModel(s).filter(function (x) { return x.r === +a.slice(1); })[0]; if (rr && rr.kind === 'in') clearInput(s, a);
+      });
+    });
+    fxSave(); return rep;
+  }
+  function fxImportDo(text) {
+    var m = $('#fxio-m'), s = cur.sheet;
+    function show(t, cls) { if (m) { m.hidden = false; m.className = 'fxmsg ' + cls; m.textContent = t; } }
+    var obj; try { obj = JSON.parse(text); } catch (e) { return show('Texto inválido: não é JSON. Copie de novo o texto inteiro da exportação.', 'err'); }
+    var rep; try { rep = fxImportObj(obj, s); } catch (e) { return show(e.message, 'err'); }
+    show('Importado: ' + rep.ok + ' fórmula(s)/valor(es) em ' + rep.sheets + ' calculadora(s).' + (rep.skip.length ? ' Ignorados (' + rep.skip.length + '): ' + rep.skip.slice(0, 5).join(' | ') : ''), rep.skip.length ? 'warn' : 'ok');
+    if (s) { rerenderKeep(); }
+  }
+  function fxModList(s) {
+    var d = FX[s.name], out = []; if (!d) return out;
+    Object.keys(d.c || {}).sort(function (a, b) { return +a.slice(1) - +b.slice(1); }).forEach(function (a) {
+      var rn = +a.slice(1), o = FXORIG[s.name] && FXORIG[s.name][a];
+      out.push({ l: fxLabel(s, rn), cur: String(d.c[a]), orig: o && o.had ? String(o.v) : '', custom: false, a: a });
+    });
+    (d.add || []).forEach(function (x) { out.push({ l: x.l, cur: x.f, orig: '', custom: true, a: 'C' + x.r }); });
+    return out;
+  }
 
   // ---------------------------------------------------------------- eventos
   var wakeLock = null;
@@ -1139,6 +1476,25 @@
       case 'copycalc': if (s) copyText(calcSummaryText(s)); break;
       case 'resetcalc': if (s) resetCalc(s); break;
       case 'step': (function () { var inp = t.closest('.inp').querySelector('input'); if (inp) stepInput(inp, +t.dataset.d, 1); })(); break;
+      case 'fxtoggle': if (s) fxToggle(s); break;
+      case 'fxedit': if (s) fxOpen(s, +t.dataset.r); break;
+      case 'fxapply': if (s) fxApply(s); break;
+      case 'fxcancel': fxCloseEditor(true); break;
+      case 'fxrestore': if (s) fxRestoreOne(s); break;
+      case 'fxdelrow': if (s) fxDelRow(s); break;
+      case 'fxins': fxInsert('fxta', t.dataset.ref); if (s) fxLive(s); break;
+      case 'fxnins': fxInsert('fxn-f', t.dataset.ref); break;
+      case 'fxaddrow': if (s) fxAddRowForm(s); break;
+      case 'fxnadd': if (s) fxAddRowDo(s); break;
+      case 'fxio': if (s) fxIOForm(s); break;
+      case 'fxscope': fxIOFill(s, t.dataset.v === '1'); break;
+      case 'fxcopy': (function () { var x = $('#fxx'); if (x) copyText(x.value); })(); break;
+      case 'fxdl': (function () { var x = $('#fxx'); if (!x) return; var b = new Blob([x.value], { type: 'application/json' }); var a2 = document.createElement('a'); a2.href = URL.createObjectURL(b); a2.download = 'manual-wen-formulas.json'; document.body.appendChild(a2); a2.click(); a2.remove(); setTimeout(function () { URL.revokeObjectURL(a2.href); }, 2000); })(); break;
+      case 'fximport': (function () { var x = $('#fxi'); fxImportDo(x ? x.value : ''); })(); break;
+      case 'fxfile': (function () { var f = document.createElement('input'); f.type = 'file'; f.accept = 'application/json,.json,text/plain'; f.onchange = function () { var rd = new FileReader(); rd.onload = function () { fxImportDo(String(rd.result)); }; rd.readAsText(f.files[0]); }; f.click(); })(); break;
+      case 'fxrestoreall': if (s) {
+        if (t.dataset.arm !== '1') { t.dataset.arm = '1'; t.textContent = 'Confirmar: descartar alterações'; t.classList.add('dng'); setTimeout(function () { if (t.isConnected) { t.dataset.arm = '0'; t.textContent = 'Restaurar original'; t.classList.remove('dng'); } }, 4000); }
+        else { fxRestoreAll(s); FXEDIT = null; rerenderKeep(); toast('Fórmulas originais restauradas'); } } break;
       case 'memorial': if (s) memorialForm(s); break;
       case 'memogen': if (s) memorialGen(s); break;
       case 'memoprint': memorialPrint(); break;
@@ -1161,8 +1517,13 @@
       var field = t.closest('.field'), r = +field.dataset.r, wrap = t.closest('.inp');
       if (t.dataset.text) { setInput(s, 'C' + r, t.value); }
       else { var n = parseNum(t.value); if (n !== null && isNaN(n)) { wrap.classList.add('bad'); return; } wrap.classList.remove('bad'); setInput(s, 'C' + r, n === null ? 0 : n); }
+      var ecx = field.querySelector('[data-echo]'); if (ecx) { var un = txt(cellV(s, 'D' + r)); ecx.textContent = (!t.dataset.text && n !== null && !isNaN(n)) ? echoText(t.value, n, un) : ''; }
       refreshCalc(s, false);
       var hasG = calcModel(s).filter(function (x) { return x.r === r; })[0]; if (hasG && hasG.rawF && !field.querySelector('.rbtn')) { field.querySelector('[data-ctl]').insertAdjacentHTML('beforeend', '<button class="rbtn" data-act="unglobal" aria-label="Voltar ao valor padrão">' + ic('reset', 's') + '</button>'); var g = field.querySelector('[data-g]'); if (g) g.hidden = true; }
+    } else if (t.dataset.act === 'fxin') {
+      clearTimeout(fxT); fxT = setTimeout(function () { if (s) fxLive(s); }, 120);
+    } else if (t.dataset.act === 'fxfind') {
+      var qf = fold(t.value).split(/\s+/).filter(Boolean); $$('#fxrl .fxref').forEach(function (b) { b.hidden = !qf.every(function (w) { return b.dataset.f.indexOf(w) >= 0; }); });
     } else if (t.dataset.act === 'tfilter') {
       var q = fold(t.value).split(/\s+/).filter(Boolean), trs = $$('#tw' + t.dataset.t + ' tbody tr'), vis = 0;
       trs.forEach(function (tr) { if (tr._f == null) tr._f = fold(tr.textContent); tr.hidden = !q.every(function (w) { return tr._f.indexOf(w) >= 0; }); if (!tr.hidden) vis++; });
@@ -1175,7 +1536,12 @@
   });
   document.addEventListener('keydown', function (e) {
     var tag = (e.target.tagName || '').toLowerCase();
-    if (e.key === '/' && tag !== 'input' && tag !== 'textarea') { e.preventDefault(); go('search'); }
+    if (e.target.id === 'fxta' && FXEDIT) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (cur.sheet) fxApply(cur.sheet); return; }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fxCloseEditor(true); return; }
+    }
+    if (e.key === 'Escape' && FXEDIT && e.target.closest && e.target.closest('.fxed')) { fxCloseEditor(true); return; }
+    if (e.key === '/'&& tag !== 'input' && tag !== 'textarea') { e.preventDefault(); go('search'); }
     if (e.key === 'Escape') { closeSheet(); memorialClose(); var lb = $('.lightbox'); if (lb) lb.click(); }
     if (e.key === 'Enter' && tag === 'input' && e.target.dataset.act === 'numin') e.target.blur();
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && tag === 'input' && e.target.dataset.act === 'numin' && !e.target.dataset.text) { e.preventDefault(); stepInput(e.target, e.key === 'ArrowUp' ? 1 : -1, e.shiftKey ? 10 : (e.altKey ? 0.1 : 1)); }
