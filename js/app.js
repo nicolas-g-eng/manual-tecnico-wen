@@ -1,7 +1,7 @@
 /* Manual Técnico do Engenheiro — Wen Technology — lógica do aplicativo */
 (function () {
   'use strict';
-  var VERSION = '3.4.0';
+  var VERSION = '3.5.0';
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
@@ -442,6 +442,8 @@
   function fallbackCopy(t) { var a = document.createElement('textarea'); a.value = t; a.style.position = 'fixed'; a.style.opacity = '0'; document.body.appendChild(a); a.select(); try { document.execCommand('copy'); } catch (e) { } a.remove(); }
 
   // ---------------------------------------------------------------- CALCULADORAS
+  // parâmetros de decisão em linguagem simples, no topo da calculadora (linhas movidas para o cartão do topo)
+  var DECISION = { '3.3': { title: 'Parâmetros de decisão', hint: 'O que muda o resultado: o esquema da viga (apoios e carga), o critério da flecha (L ÷ 800, 500, 300...), o fator de segurança e o material. Altere aqui; as fórmulas ficam no botão Fórmulas.', rows: [19, 25, 16, 7, 8] } };
   function calcModel(s) {
     if (s._m) return s._m;
     var rows = s.rows.map(function (r) {
@@ -487,14 +489,21 @@
     h += '<div class="calc-grid"><aside class="card summary" id="sum"></aside><div class="form' + (FXMODE ? ' fxon' : '') + '">';
     var figs = (s.figs || []).slice().sort(function (a, b) { return a.r - b.r; }), fi = 0, open = false;
     function flushFigs(r) { var o = ''; while (fi < figs.length && figs[fi].r <= r) { var f = figs[fi++]; o += '<details class="figd" open><summary>' + ic('image', 's') + esc(f.cap || ('Figura de apoio ' + (fi))) + ic('down', 's chv') + '</summary><div class="fb"><button data-act="zoom" data-src="' + mediaUrl(f.src) + '" style="width:100%"><img decoding="async" width="' + f.w + '" height="' + f.h + '" src="' + mediaUrl(f.src) + '" alt="' + esc(f.cap || 'Figura') + '"></button></div></details>'; } return o; }
+    var DEC = DECISION[s.num] || null, decSet = {};
+    if (DEC) {
+      h += '<section class="card sec decide" aria-label="Parâmetros de decisão"><h3>' + esc(DEC.title) + '</h3><p class="dc-hint">' + esc(DEC.hint) + '</p>';
+      DEC.rows.forEach(function (rn) { var rr = rows.filter(function (x) { return x.r === rn; })[0]; if (!rr) return; decSet[rn] = 1; h += preCards(s, rn) + fieldHtml(s, rr); });
+      h += '</section>';
+    }
     rows.forEach(function (r) {
+      if (decSet[r.r]) return;
       var f = flushFigs(r.r);
       if (r.k === 'sec') { if (open) h += '</section>'; h += f + '<section class="card sec"><h3>' + esc(r.text) + '</h3>'; open = true; }
       else { if (f) { if (open) { h += '</section>'; open = false; } h += f; } if (!open) { h += '<section class="card sec">'; open = true; } if (LIBSHEETS[s.num] && r.r === LIBSHEETS[s.num].typ) h += libCardHtml(s); h += preCards(s, r.r); h += r.k === 'note' ? '<div class="field"><div class="hint" data-n="' + r.r + '">' + esc(r.text) + '</div></div>' : fieldHtml(s, r); }
     });
     if (open) h += '</section>';
     h += flushFigs(9999);
-    h += '<div class="actions"><button class="btn pri" data-act="copycalc">' + ic('copy', 's') + ' Copiar resultados</button><button class="btn" data-act="memorial">' + ic('book', 's') + ' Memorial (PDF)</button><button class="btn fxtog" data-act="fxtoggle" aria-pressed="' + FXMODE + '"><span class="fxk" aria-hidden="true">ƒx</span> Editar fórmulas</button><button class="btn" data-act="resetcalc">' + ic('reset', 's') + ' Restaurar padrões</button></div>';
+    h += '<div class="actions"><button class="btn pri" data-act="copycalc">' + ic('copy', 's') + ' Copiar resultados</button><button class="btn" data-act="memorial">' + ic('book', 's') + ' Memorial (PDF)</button><button class="btn fxtog" data-act="fxtoggle"><span class="fxk" aria-hidden="true">ƒx</span> Fórmulas</button><button class="btn" data-act="resetcalc">' + ic('reset', 's') + ' Restaurar padrões</button></div>';
     h += '<p class="footnote">' + esc(D.home.aviso || '') + '</p></div></div><div class="livebar" id="livebar" aria-live="polite"></div>';
     return h;
   }
@@ -1115,7 +1124,7 @@
       '<h2>Dados de entrada</h2>' + memoTable(d.ins, 'Parâmetro') +
       '<h2>Resultados e verificações</h2>' + memoTable(d.outs, 'Resultado') +
       (sheetHasEq(s) ? '<p class="unitnote"><b>Unidades:</b> ' + esc(UNIT_NOTE) + '.</p>' : '') +
-      (mods.length ? '<h2>Fórmulas alteradas pelo usuário</h2><table class="mt"><thead><tr><th>Item (célula)</th><th>Fórmula usada neste memorial</th><th>Fórmula original</th></tr></thead><tbody>' + mods.map(function (x) { return '<tr class="modr"><td>' + esc(x.l) + ' (' + esc(x.a) + ')' + (x.custom ? '<br><span class="modn">linha própria do usuário</span>' : '') + '</td><td>' + (fxIsF(x.cur) && fxHuman(s, x.cur) !== x.cur ? esc(fxHuman(s, x.cur)) + '<br>' : '') + '<code>' + esc(x.cur) + '</code></td><td>' + (x.custom ? 'não existe na planilha' : (fxIsF(x.orig) && fxHuman(s, x.orig) !== x.orig ? esc(fxHuman(s, x.orig)) + '<br>' : '') + '<code>' + esc(x.orig || '(vazio)') + '</code>') + '</td></tr>'; }).join('') + '</tbody></table>' : '') +
+      fxpMemoHtml(s) + fxpMemoMods(s) +
       (sts.length ? '<p class="concl ' + (bad ? 'errr' : 'okr') + '"><b>' + (bad ? 'Atenção: ' + bad + ' verificação(ões) reprovada(s) de ' + sts.length + '.' : 'Todas as ' + sts.length + ' verificações atendem.') + '</b></p>' : '') +
       (m.o ? '<h2>Observações</h2><p>' + esc(m.o) + '</p>' : '') +
       '<div class="sig"><div><span></span>Responsável técnico</div><div><span></span>Verificação</div></div>' +
@@ -1216,13 +1225,12 @@
 
   function fxBarHtml(s) {
     var n = fxCount(s), on = FXMODE;
-    return '<button class="btn sm fxtog" data-act="fxtoggle" aria-pressed="' + on + '"><span class="fxk" aria-hidden="true">ƒx</span> ' + (on ? 'Editando fórmulas' : 'Editar fórmulas') + '</button>' +
+    return '<button class="btn pri sm fxtog" data-act="fxtoggle"><span class="fxk" aria-hidden="true">ƒx</span> Fórmulas</button>' +
+      '<span class="fxlead">Veja e altere todas as fórmulas desta calculadora, com nomes e símbolos.</span>' +
       (n ? '<span class="fxst" role="status"><i aria-hidden="true"></i>Fórmulas alteradas · ' + n + (n === 1 ? ' item' : ' itens') + '</span>' : '') +
       '<span class="fxsp"></span>' +
-      (on ? '<button class="btn sm" data-act="fxaddrow">+ Linha própria</button>' : '') +
       '<button class="btn sm" data-act="fxio">Exportar / importar</button>' +
-      (n ? '<button class="btn sm" data-act="fxrestoreall" data-arm="0">Restaurar original</button>' : '') +
-      (on ? '<p class="fxhint">Toque em uma linha para ver e alterar a fórmula. Enter aplica, Esc cancela. Decimal com ponto (2.5). Funções: SE, MIN, MAX, ABS, RAIZ, PI, ARRED, POTENCIA, E, OU.</p>' : '');
+      (n ? '<button class="btn sm" data-act="fxrestoreall" data-arm="0">Restaurar original</button>' : '');
   }
   function fxBarRefresh(s) {
     var b = $('#fxbar'); if (b) { b.innerHTML = fxBarHtml(s); b.classList.toggle('on', FXMODE); b.classList.toggle('has', fxCount(s) > 0); }
@@ -1402,7 +1410,7 @@
     var obj; try { obj = JSON.parse(text); } catch (e) { return show('Texto inválido: não é JSON. Copie de novo o texto inteiro da exportação.', 'err'); }
     var rep; try { rep = fxImportObj(obj, s); } catch (e) { return show(e.message, 'err'); }
     show('Importado: ' + rep.ok + ' fórmula(s)/valor(es) em ' + rep.sheets + ' calculadora(s).' + (rep.skip.length ? ' Ignorados (' + rep.skip.length + '): ' + rep.skip.slice(0, 5).join(' | ') : ''), rep.skip.length ? 'warn' : 'ok');
-    if (s) { rerenderKeep(); }
+    if (FXP.open) fxpRefresh(false); else if (s) { rerenderKeep(); }
   }
   function fxModList(s) {
     var d = FX[s.name], out = []; if (!d) return out;
@@ -1412,6 +1420,378 @@
     });
     (d.add || []).forEach(function (x) { out.push({ l: x.l, cur: x.f, orig: '', custom: true, a: 'C' + x.r }); });
     return out;
+  }
+
+  // ================================================================ PAINEL "FÓRMULAS" (v3.5)
+  // Uma tela por calculadora com TODAS as fórmulas em nomes e símbolos, agrupadas por bloco, editáveis ali mesmo.
+  var FXP = { open: false, s: null, M: null, sel: null, ed: null, filter: '', ac: null };
+  function fxpBuild(s) {
+    var model = calcModel(s), W = window.WenFx, rows = model.filter(function (r) { return r.k === 'f'; }), hide = {};
+    var infos = [];
+    var rowSet = {}, byR = {};
+    rows.forEach(function (r) {
+      rowSet[r.r] = 1; var l = txt(cellV(s, 'B' + r.r));
+      if (/^\(não usado\)$/i.test(l)) { hide[r.r] = 1; l = W.labelFallback(W.ast(s.cells['B' + r.r])) || l; }   // rótulo muda com o tipo: usa o primeiro nome útil
+      infos.push({ r: r.r, label: l || ('Linha ' + r.r), unit: txt(cellV(s, 'D' + r.r)) });
+    });
+    var aux = W.auxRows(s.cells, rowSet, s.name);   // cálculos intermediários que não aparecem na tela
+    aux.forEach(function (n) { var l = s.cells['B' + n]; infos.push({ r: n, label: (typeof l === 'string' && l.charAt(0) !== '=' && l) ? l : 'Cálculo auxiliar ' + n, unit: txt(cellV(s, 'D' + n)) }); byR[n] = { k: 'f', r: n, kind: 'calc', nf: 'General', aux: true }; });
+    var nm = W.buildNames(infos, (W.SYMS || {})[s.num]), blocks = [], cb = null;
+    model.forEach(function (r) {
+      if (r.k === 'sec') { cb = { title: r.text, rows: [] }; blocks.push(cb); }
+      else if (r.k === 'f' && !hide[r.r]) { if (!cb) { cb = { title: 'DADOS', rows: [] }; blocks.push(cb); } cb.rows.push(r.r); }
+    });
+    if (aux.length) blocks.push({ title: 'CÁLCULOS AUXILIARES (usados pelas fórmulas acima)', rows: aux.slice() });
+    var nums = infos.map(function (x) { return x.r; }), g = W.graph(nums, function (r) { return s.cells['C' + r]; }, s.name);
+    model.forEach(function (r) { if (r.k === 'f') byR[r.r] = r; });
+    blocks.forEach(function (b) { b.rows = W.order(b.rows, g); });
+    return { s: s, nm: nm, g: g, byR: byR, blocks: blocks.filter(function (b) { return b.rows.length; }), ctx: { nm: nm, sheet: s.name } };
+  }
+  function fxpEvalExpr(s, raw) { var c = ENG.check(s.name, 'C2000', raw); return c.ok ? c.value : undefined; }
+  function fxpCaseNames(M, head) {
+    if (!head || head.k !== 'ref' || !head.single || (head.sh && head.sh !== M.s.name) || head.c1 !== 3) return null;
+    var a = window.WenFx.ast(M.s.cells['C' + head.r1]);
+    if (!a || a.k !== 'fn' || a.n !== 'MATCH' || a.a.length < 2 || a.a[1].k !== 'ref' || a.a[1].single) return null;
+    var rg = a.a[1], out = [];
+    for (var rr = rg.r1; rr <= rg.r2; rr++) { var v = ENG.raw(rg.sh || M.s.name, Engine.numToCol(rg.c1) + rr); out.push(v == null ? null : String(v).replace(/^\d+\s+/, '')); }
+    return out;
+  }
+  function fxpView(M, rn) {
+    var W = window.WenFx, raw = M.s.cells['C' + rn], v = { r: rn, raw: raw, isF: fxIsF(raw), info: M.nm.byRow[rn] };
+    if (v.isF) {
+      v.ast = W.ast(raw);
+      if (v.ast) {
+        var cs = W.cases(raw, { caseNames: function (h) { return fxpCaseNames(M, h); } });
+        if (cs) {
+          v.cs = cs;
+          if (cs.kind === 'choose') { var k = fxpEvalExpr(M.s, '=' + W.serialize(cs.head)); v.act = typeof k === 'number' ? Math.floor(k) : null; }
+          else { var c0 = fxpEvalExpr(M.s, '=' + W.serialize(cs.cases[0].ast)); v.act = c0 === true ? 1 : c0 === false ? 2 : null; }
+        }
+      }
+    }
+    return v;
+  }
+  function sbNum(v) {
+    if (typeof v !== 'number' || !isFinite(v)) return String(v);
+    var s = String(parseFloat(v.toPrecision(6)));
+    if (s.indexOf('e') >= 0) return s.replace('.', ',');
+    var neg = s.charAt(0) === '-'; if (neg) s = s.slice(1);
+    var p = s.split('.'); return (neg ? '-' : '') + grpInt(p[0]) + (p[1] ? ',' + p[1] : '');
+  }
+  function fxpSubVal(s, rr) { var v = cellV(s, 'C' + rr); if (typeof v === 'number') return sbNum(v); if (typeof v === 'string') return '“' + v + '”'; if (typeof v === 'boolean') return v ? 'verdadeiro' : 'falso'; return null; }
+  function fxpMath(M, ast, withVals) { var ctx = { nm: M.nm, sheet: M.s.name }; if (withVals) ctx.val = function (rr) { return fxpSubVal(M.s, rr); }; return window.WenFx.toHtml(ast, ctx, 0); }
+  function fxpSym(M, rn) { var W = window.WenFx; return M.nm.symOf[rn] ? W.symH(M.nm.symOf[rn]) : '<span class="mnm">' + esc(M.nm.nameOf[rn] || ('linha ' + rn)) + '</span>'; }
+  function fxpValHtml(M, rn) {
+    var s = M.s, v = cellV(s, 'C' + rn), r = M.byR[rn], o = fmtOut(s, r, v), u = txt(cellV(s, 'D' + rn)), e = eqOf(v, u);
+    if (o.err) return '<span class="errv" title="' + esc(o.err) + '">—</span>';
+    if (typeof v === 'string' && /^[✓✗]/.test(v)) return '<span class="fxst2 ' + (v.charAt(0) === '✓' ? 'ok' : 'err') + '">' + esc(v) + '</span>';
+    return '<b>' + esc(o.t) + '</b>' + (u && u !== '-' && o.t !== '' && typeof v !== 'string' ? ' <small>' + esc(u) + '</small>' : '') + (e ? '<small class="eq">(' + esc(e) + ')</small>' : '');
+  }
+  function fxpCaseMod(s, rn, i) {
+    var o = FXORIG[s.name] && FXORIG[s.name]['C' + rn], W = window.WenFx; if (!o || !fxMod(s, 'C' + rn)) return false;
+    var a = W.ast(fxRaw(s, 'C' + rn)), b = W.ast(o.v); if (!a || !b || !a.a[i] || !b.a[i]) return false;
+    return W.serialize(a.a[i]) !== W.serialize(b.a[i]);
+  }
+  function fxpRowHtml(M, rn) {
+    var s = M.s, W = window.WenFx, V = fxpView(M, rn), info = V.info, r = M.byR[rn], mod = fxMod(s, 'C' + rn), unit = txt(cellV(s, 'D' + rn));
+    var eq = '';
+    if (!V.isF) { var cv = V.raw; eq = fxpSym(M, rn) + ' <span class="mop">=</span> <span class="fxk0">' + (typeof cv === 'number' ? esc(sbNum(cv)) : esc(cv == null ? '' : String(cv))) + (unit && unit !== '-' ? ' <small>' + esc(unit) + '</small>' : '') + '</span>'; }
+    else if (!V.ast) eq = '<code>' + esc(V.raw) + '</code>';
+    else if (V.cs) eq = fxpSym(M, rn) + ' <span class="mop">=</span> <span class="fxcs">' + (V.cs.kind === 'choose' ? 'depende do caso escolhido (' + V.cs.cases.length + ' casos)' : 'depende de uma condição') + '</span>';
+    else eq = fxpSym(M, rn) + ' <span class="mop">=</span> ' + fxpMath(M, V.ast, false);
+    var h = '<article class="fxrw' + (r.kind === 'in' ? ' in' : '') + (mod ? ' mod' : '') + (r.custom ? ' cust' : '') + '" data-r="' + rn + '" id="fxrw-' + rn + '">' +
+      '<div class="fxrh"><div class="fxr-n"><button type="button" class="fxr-nm" data-act="fxp-sel" data-r="' + rn + '" aria-pressed="false">' + esc(info ? info.name : ('Linha ' + rn)) + '</button>' +
+      (mod ? '<span class="fxtag">' + (r.custom ? 'linha própria' : 'alterada') + '</span>' : '') + '</div>' +
+      '<div class="fxr-eq' + (eq.length > 700 ? ' long' : '') + '">' + eq + '</div>' +
+      '<div class="fxr-v">' + fxpValHtml(M, rn) + '</div>' +
+      '<button type="button" class="btn sm fxr-ed" data-act="fxp-edit" data-r="' + rn + '" aria-label="Editar ' + esc(info ? info.name : '') + '">Editar</button></div>';
+    if (V.cs) {
+      h += '<ul class="fxcases">';
+      V.cs.cases.forEach(function (c) {
+        var isAct = c.i === V.act, cm = fxpCaseMod(s, rn, c.i), cname = c.name;
+        var head = V.cs.kind === 'if' && c.i === 0 ? '' : fxpSym(M, rn) + ' <span class="mop">=</span> ';
+        h += '<li class="fxcase' + (isAct ? ' act' : '') + (cm ? ' mod' : '') + '"><div class="fxcb"><span class="fxcn">' + esc(cname) + (isAct ? '<i class="fxon">' + (V.cs.kind === 'choose' ? 'caso ativo' : 'ativo agora') + '</i>' : '') + (cm ? '<i class="fxtag">alterado</i>' : '') + '</span>' +
+          '<span class="fxce">' + head + fxpMath(M, c.ast, false) + '</span><button type="button" class="btn sm fxr-ed" data-act="fxp-edit" data-r="' + rn + '" data-i="' + c.i + '" aria-label="Editar ' + esc(cname) + '">Editar</button></div></li>';
+      });
+      h += '</ul>';
+    }
+    return h + '<div class="fxslot" id="fxslot-' + rn + '"></div></article>';
+  }
+  function fxpBodyHtml(M) {
+    var h = '';
+    M.blocks.forEach(function (b) {
+      h += '<section class="fxb"><h3 class="fxb-h">' + esc(b.title) + '<small>' + b.rows.length + (b.rows.length === 1 ? ' linha' : ' linhas') + '</small></h3>';
+      b.rows.forEach(function (rn) { h += fxpRowHtml(M, rn); });
+      h += '</section>';
+    });
+    return h + '<div class="fxslot" id="fxslot-new"></div>';
+  }
+  function fxpHeadHtml(s) {
+    var n = fxCount(s);
+    return '<header class="fxp-top"><div class="fxp-t"><h2>Fórmulas</h2><p>' + esc(s.name) + '</p></div>' +
+      '<div class="fxp-tools"><label class="filter fxp-find"><input type="search" id="fxp-f" data-act="fxp-filter" placeholder="Buscar por nome ou símbolo (ex.: flecha, Ix, tensão)" autocomplete="off" value="' + esc(FXP.filter) + '"></label>' +
+      '<button class="btn sm" data-act="fxp-addrow">+ Linha própria</button><button class="btn sm" data-act="fxio">Exportar / importar</button>' +
+      '<button class="btn sm" data-act="fxrestoreall" data-arm="0"' + (n ? '' : ' hidden') + '>Restaurar original</button>' +
+      '<button class="btn pri sm" data-act="fxp-close">Fechar</button></div>' +
+      '<p class="fxp-leg"><span class="fxp-sw up"></span>de onde vem <span class="fxp-sw dn"></span>para onde vai. Toque no nome de uma linha para destacar. <span class="fxp-n">' + (n ? n + (n === 1 ? ' item alterado' : ' itens alterados') : 'Nada alterado: valores originais') + '</span></p></header>';
+  }
+  function fxpOpen(s) {
+    if (FXP.open) fxpClose(false);
+    FXP.open = true; FXP.s = s; FXP.sel = null; FXP.ed = null; FXP.ac = null; FXP.M = fxpBuild(s);
+    var ov = document.createElement('div'); ov.id = 'fxpanel'; ov.className = 'fxp'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Fórmulas de ' + s.name);
+    ov.innerHTML = fxpHeadHtml(s) + '<div class="fxp-body" id="fxp-body">' + fxpBodyHtml(FXP.M) + '</div>';
+    document.body.appendChild(ov); document.body.classList.add('fxp-lock');
+    fxpFilterApply(); var f = $('#fxp-f'); if (f) f.focus({ preventScroll: true });
+  }
+  function fxpClose(refresh) {
+    var ov = $('#fxpanel'); if (ov) ov.remove(); document.body.classList.remove('fxp-lock');
+    var s = FXP.s; FXP.open = false; FXP.ed = null;
+    if (refresh !== false && s && cur.sheet === s) {
+      var want = calcModel(s).filter(function (r) { return r.k === 'f' && r.r >= FX_ROW0; }).length, have = $$('.field[data-r]').filter(function (e) { return +e.dataset.r >= FX_ROW0; }).length;
+      if (want !== have) rerenderKeep(); else { refreshCalc(s, true); fxBarRefresh(s); }
+    }
+  }
+  function fxpRefresh(keepEd) {
+    if (!FXP.open) return; var s = FXP.s, sc = $('#fxpanel'), y = sc ? sc.scrollTop : 0;
+    FXP.M = fxpBuild(s);
+    var ed = FXP.ed; $('#fxp-body').innerHTML = fxpBodyHtml(FXP.M);
+    var top = $('.fxp-top'); if (top) top.outerHTML = fxpHeadHtml(s);
+    fxpFilterApply(); fxpMark();
+    if (sc) sc.scrollTop = y;
+    if (keepEd && ed) { FXP.ed = null; fxpEdit(ed.r, ed.i == null ? null : ed.i, true); }
+  }
+  // ---- destaque "de onde vem / para onde vai"
+  function fxpMark() {
+    var M = FXP.M; $$('#fxpanel .fxrw').forEach(function (e) { e.classList.remove('sel', 'up', 'dn', 'up1', 'dn1'); var b = $('.fxr-nm', e); if (b) b.setAttribute('aria-pressed', 'false'); });
+    if (FXP.sel == null || !M) return;
+    var W = window.WenFx, up = W.closure(M.g, FXP.sel, 'deps'), dn = W.closure(M.g, FXP.sel, 'users'), d1 = M.g[FXP.sel] ? M.g[FXP.sel].deps : [], u1 = M.g[FXP.sel] ? M.g[FXP.sel].users : [];
+    var se = $('#fxrw-' + FXP.sel); if (se) { se.classList.add('sel'); var sb = $('.fxr-nm', se); if (sb) sb.setAttribute('aria-pressed', 'true'); }
+    up.forEach(function (r) { var e = $('#fxrw-' + r); if (e) { e.classList.add('up'); if (d1.indexOf(r) >= 0) e.classList.add('up1'); } });
+    dn.forEach(function (r) { var e = $('#fxrw-' + r); if (e) { e.classList.add('dn'); if (u1.indexOf(r) >= 0) e.classList.add('dn1'); } });
+  }
+  function fxpSelect(rn) { FXP.sel = FXP.sel === rn ? null : rn; fxpMark(); }
+  function fxpFilterApply() {
+    var q = fold(FXP.filter).split(/\s+/).filter(Boolean), M = FXP.M; if (!M) return;
+    $$('#fxpanel .fxrw').forEach(function (e) {
+      var rn = +e.dataset.r, info = M.nm.byRow[rn], hay = fold((info ? info.name + ' ' + (M.nm.symOf[rn] || '') : '') + ' ' + e.textContent);
+      e.hidden = !q.every(function (w) { return hay.indexOf(w) >= 0; });
+    });
+    $$('#fxpanel .fxb').forEach(function (b) { b.hidden = !$$('.fxrw', b).some(function (e) { return !e.hidden; }); });
+  }
+  // ---- editor
+  function fxpInitText(M, rn, i) {
+    var W = window.WenFx, raw = M.s.cells['C' + rn];
+    if (!fxIsF(raw)) return typeof raw === 'number' ? numStr(raw) : String(raw == null ? '' : raw);
+    var a = W.ast(raw); if (!a) return raw;
+    return i == null ? W.toEdit(a, M.ctx) : W.toEdit(a.a[i], M.ctx);
+  }
+  function fxpEdit(rn, i, silent) {
+    var M = FXP.M, s = FXP.s, r = M.byR[rn]; if (!r) return;
+    fxpCloseEd();
+    var slot = $('#fxslot-' + rn); if (!slot) return;
+    var W = window.WenFx, info = M.nm.byRow[rn], raw = s.cells['C' + rn], V = fxpView(M, rn), cname = null;
+    if (i != null && V.cs) { var cc = V.cs.cases.filter(function (c) { return c.i === i; })[0]; cname = cc ? cc.name : null; }
+    FXP.ed = { r: rn, i: i == null ? null : i, kind: V.cs ? V.cs.kind : null };
+    var mod = fxMod(s, 'C' + rn), isIn = r.kind === 'in' && !fxIsF(raw);
+    var title = (i != null ? 'Caso “' + (cname || ('caso ' + i)) + '” de ' : (isIn ? 'Valor padrão de ' : 'Fórmula de ')) + (info ? info.name : '');
+    slot.innerHTML = '<div class="fxe" role="group" aria-label="' + esc(title) + '"><label class="fxe-l" for="fxpt">' + esc(title) + '</label>' +
+      (r.custom ? '<div class="fxrow2"><label>Nome da linha<input id="fxp-lab" type="text" value="' + esc(info ? info.name : '') + '" autocomplete="off"></label><label>Unidade<input id="fxp-un" type="text" value="' + esc(txt(cellV(s, 'D' + rn))) + '" autocomplete="off"></label></div>' : '') +
+      fxpToolsHtml() + '<div class="fxe-f"><textarea id="fxpt" rows="2" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" data-act="fxp-in" aria-describedby="fxpmsg fxpnow" aria-autocomplete="list" aria-controls="fxpac">' + esc(fxpInitText(M, rn, i)) + '</textarea><div class="fxac" id="fxpac" role="listbox" hidden></div></div>' +
+      '<p class="fxnow" id="fxpnow" aria-live="polite"></p><p class="fxmsg" id="fxpmsg" role="alert" hidden></p>' +
+      '<div class="fxbtns"><button type="button" class="btn pri sm" data-act="fxp-apply">Aplicar</button><button type="button" class="btn sm" data-act="fxp-cancel">Cancelar</button>' +
+      (mod && !r.custom ? '<button type="button" class="btn sm" data-act="fxp-restore">' + (i != null ? 'Restaurar este caso' : 'Restaurar original') + '</button>' : '') +
+      (r.custom ? '<button type="button" class="btn sm dng" data-act="fxp-del">Excluir linha</button>' : '') + '</div>' +
+      '<p class="fxe-h">Escreva com os nomes ou símbolos (digite <b>[</b> ou uma letra para ver a lista). Potência com ^, raiz com √( ), pi com π. Decimal com vírgula ou ponto. Enter aplica, Esc cancela.</p></div>';
+    var ta = $('#fxpt'); fxpGrow(ta); fxpLive(); if (!silent) ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) { }
+    var rw = $('#fxrw-' + rn); if (rw && !silent) rw.scrollIntoView({ block: 'nearest' });
+  }
+  function fxpToolsHtml() {
+    var b = [['^', '^', 'Potência'], ['√', '√(|)', 'Raiz quadrada'], ['π', 'π', 'Pi'], ['×', '·', 'Multiplicar'], ['÷', '/', 'Dividir'], ['(', '(', 'Abrir parêntese'], [')', ')', 'Fechar parêntese'], ['SE', 'SE(|; ; )', 'Se (condição; então; senão)'], ['MÍN', 'MÍN(|; )', 'Menor valor'], ['MÁX', 'MÁX(|; )', 'Maior valor'], ['ABS', 'ABS(|)', 'Valor absoluto']];
+    return '<div class="fxtools" role="toolbar" aria-label="Operadores">' + b.map(function (x) { return '<button type="button" class="fxop" data-act="fxp-op" data-t="' + esc(x[1]) + '" title="' + esc(x[2]) + '" aria-label="' + esc(x[2]) + '">' + esc(x[0]) + '</button>'; }).join('') + '</div>';
+  }
+  function fxpGrow(ta) { if (!ta) return; ta.style.height = 'auto'; ta.style.height = Math.min(220, Math.max(56, ta.scrollHeight + 2)) + 'px'; }
+  function fxpCloseEd() {
+    if (!FXP.ed) return; var rn = FXP.ed.r, slot = $('#fxslot-' + rn); if (slot) slot.innerHTML = ''; FXP.ed = null; fxpAcClose();
+  }
+  // lê o editor e testa SEM aplicar
+  function fxpEvaluate() {
+    var ed = FXP.ed, M = FXP.M, s = FXP.s, W = window.WenFx, ta = $('#fxpt'); if (!ed || !ta) return null;
+    if (ed.isNew) {
+      if (!ta.value.trim()) return { ok: false, error: 'Digite a fórmula da nova linha.' };
+      var cn = W.fromEdit(ta.value, M.nm); if (!cn.ok) return cn;
+      var ck = ENG.check(s.name, 'C2001', cn.raw); if (!ck.ok) return ck;
+      return { ok: true, raw: cn.raw, exprAst: cn.ast, exprValue: ck.value, value: ck.value, warn: ck.warn, isNew: true };
+    }
+    var rn = ed.r, r = M.byR[rn], addr = 'C' + rn, cur = s.cells[addr], text = ta.value, t = text.trim();
+    if (!t) return { ok: false, error: 'Digite uma fórmula ou um valor.' };
+    var isConstRow = !fxIsF(cur) && ed.i == null && t.charAt(0) !== '=';
+    if (isConstRow) {
+      var n = parseNum(t);
+      if (n !== null && !isNaN(n) && /^[-+]?[\d\s.,]+$/.test(t)) return { ok: true, raw: n, constant: true, value: n };
+      if (typeof cur === 'number' || r.num) { var tryF = W.fromEdit(t, M.nm); if (!tryF.ok) return { ok: false, error: 'Valor numérico inválido. Digite um número (9,53) ou uma fórmula que comece com =.' }; return fxpFormula(M, s, rn, tryF); }
+      if (/[A-Za-z0-9]/.test(t) && !/[()\[\]]/.test(t) || (r.items && r.items.indexOf(t) >= 0)) return { ok: true, raw: t, constant: true, value: t };
+    }
+    var conv = W.fromEdit(t, M.nm); if (!conv.ok) return conv;
+    if (ed.i != null) {
+      var full = W.withCase(cur, ed.kind, ed.i, conv.raw); if (!full) return { ok: false, error: 'Não foi possível montar a fórmula com este caso.' };
+      var ex = ENG.check(s.name, 'C2000', conv.raw); if (!ex.ok) return ex;
+      var chk = ENG.check(s.name, addr, full); if (!chk.ok) return chk;
+      return { ok: true, raw: full, exprAst: conv.ast, exprValue: ex.value, value: chk.value, warn: ex.warn || chk.warn, partial: true };
+    }
+    return fxpFormula(M, s, rn, conv);
+  }
+  function fxpFormula(M, s, rn, conv) {
+    var chk = ENG.check(s.name, 'C' + rn, conv.raw); if (!chk.ok) return chk;
+    return { ok: true, raw: conv.raw, exprAst: conv.ast, exprValue: chk.value, value: chk.value, warn: chk.warn };
+  }
+  function fxpLive() {
+    var ed = FXP.ed; if (!ed) return; var M = FXP.M, s = FXP.s, c = fxpEvaluate(), msg = $('#fxpmsg'), now = $('#fxpnow'), ap = $('[data-act="fxp-apply"]'), ta = $('#fxpt');
+    if (!msg || !now) return;
+    if (!c.ok) { msg.hidden = false; msg.className = 'fxmsg err'; msg.textContent = c.error; now.innerHTML = ''; if (ta) ta.setAttribute('aria-invalid', 'true'); if (ap) ap.disabled = true; return; }
+    if (ta) ta.removeAttribute('aria-invalid'); if (ap) ap.disabled = false;
+    if (c.warn) { msg.hidden = false; msg.className = 'fxmsg warn'; msg.textContent = c.warn; } else { msg.hidden = true; msg.textContent = ''; }
+    if (c.isNew) {
+      var un0 = (($('#fxp-un') || {}).value || '').trim(), lb0 = (($('#fxp-lab') || {}).value || '').trim() || 'Nova linha', e0 = typeof c.value === 'number' ? eqOf(c.value, un0) : '';
+      now.innerHTML = '<span class="fxnl">Valor agora</span> <span class="mnm">' + esc(lb0) + '</span> <span class="mop">=</span> ' + fxpMath(M, c.exprAst, true) + ' <span class="mop">=</span> <b class="fxres">' + esc(typeof c.value === 'number' ? sbNum(c.value) : String(c.value)) + (un0 ? ' ' + esc(un0) : '') + (e0 ? ' (' + esc(e0) + ')' : '') + '</b>'; return;
+    }
+    var rn = ed.r, unit = txt(cellV(s, 'D' + rn)), val = c.exprValue !== undefined ? c.exprValue : c.value, vt;
+    function fmt(v) { var r = M.byR[rn], o = fmtOut(s, r, v), e = eqOf(v, unit); return (o.err ? o.err : o.t) + (unit && unit !== '-' && typeof v !== 'string' && !o.err ? ' ' + unit : '') + (e ? ' (' + e + ')' : ''); }
+    if (c.constant) { now.innerHTML = '<span class="fxnl">Valor agora</span> ' + fxpSym(M, rn) + ' <span class="mop">=</span> <b>' + esc(typeof c.value === 'number' ? fmt(c.value) : c.value) + '</b>'; return; }
+    now.innerHTML = '<span class="fxnl">Valor agora</span> ' + fxpSym(M, rn) + ' <span class="mop">=</span> ' + fxpMath(M, c.exprAst, true) + ' <span class="mop">=</span> <b class="fxres">' + esc(fmt(val)) + '</b>';
+  }
+  function fxpApply() {
+    var ed = FXP.ed; if (!ed) return; var M = FXP.M, s = FXP.s, rn = ed.r, c = fxpEvaluate();
+    if (!c || !c.ok) { fxpLive(); var t0 = $('#fxpt'); if (t0) t0.focus(); return; }
+    var r = M.byR[rn], d = fxData(s, true);
+    if (r.custom) {
+      var lb = (($('#fxp-lab') || {}).value || '').trim() || 'Linha própria', un = (($('#fxp-un') || {}).value || '').trim(), ce = d.add.filter(function (x) { return x.r === rn; })[0];
+      if (!fxIsF(c.raw)) { var m0 = $('#fxpmsg'); m0.hidden = false; m0.className = 'fxmsg err'; m0.textContent = 'A linha própria precisa de uma fórmula (use =, nomes e operadores).'; return; }
+      if (ce) { ce.l = lb; ce.u = un; ce.f = c.raw; } fxApplyAdd(s); fxSave();
+    } else {
+      fxSetCell(s, 'C' + rn, c.raw);
+      if (r.kind === 'in') clearInput(s, 'C' + rn);
+    }
+    FXP.ed = null; fxpRefresh(false); toast(r.kind === 'in' && c.constant ? 'Valor padrão alterado' : 'Fórmula aplicada e recalculada');
+    var b = $('#fxrw-' + rn + ' .fxr-ed'); if (b) b.focus({ preventScroll: true });
+  }
+  function fxpRestore() {
+    var ed = FXP.ed; if (!ed) return; var M = FXP.M, s = FXP.s, rn = ed.r, W = window.WenFx, addr = 'C' + rn;
+    if (ed.i != null) {
+      var o = FXORIG[s.name] && FXORIG[s.name][addr], oe = o ? W.caseExprRaw(o.v, ed.i) : null;
+      if (oe) { var full = W.withCase(s.cells[addr], ed.kind, ed.i, oe); if (full) { var oa = W.ast(o.v), na = W.ast(full); if (W.serialize(oa) === W.serialize(na)) fxRestoreCell(s, addr); else fxSetCell(s, addr, full); } }
+    } else { fxRestoreCell(s, addr); var r = M.byR[rn]; if (r && r.kind === 'in') clearInput(s, addr); }
+    FXP.ed = null; fxpRefresh(false); toast(ed.i != null ? 'Caso restaurado' : 'Original restaurado');
+  }
+  function fxpDel() {
+    var ed = FXP.ed; if (!ed) return; var s = FXP.s, d = fxData(s, false); if (!d) return;
+    d.add = d.add.filter(function (x) { return x.r !== ed.r; }); FXP.ed = null; fxApplyAdd(s); fxSave(); fxpRefresh(false); toast('Linha própria excluída');
+  }
+  // ---- nova linha própria
+  function fxpNew() {
+    fxpCloseEd(); var slot = $('#fxslot-new'), M = FXP.M; if (!slot) return;
+    FXP.ed = { r: -1, i: null, kind: null, isNew: true };
+    slot.innerHTML = '<div class="fxe fxe-new" role="group" aria-label="Nova linha própria"><label class="fxe-l" for="fxpt">Nova linha própria</label>' +
+      '<div class="fxrow2"><label>Nome da linha<input id="fxp-lab" type="text" placeholder="Ex.: Flecha fixa de 5 mm" autocomplete="off"></label><label>Unidade<input id="fxp-un" type="text" placeholder="mm" autocomplete="off"></label></div>' +
+      fxpToolsHtml() + '<div class="fxe-f"><textarea id="fxpt" rows="2" spellcheck="false" autocapitalize="off" autocomplete="off" data-act="fxp-in" placeholder="Ex.: L/300" aria-describedby="fxpmsg fxpnow" aria-autocomplete="list" aria-controls="fxpac"></textarea><div class="fxac" id="fxpac" role="listbox" hidden></div></div>' +
+      '<p class="fxnow" id="fxpnow" aria-live="polite"></p><p class="fxmsg" id="fxpmsg" role="alert" hidden></p>' +
+      '<div class="fxbtns"><button type="button" class="btn pri sm" data-act="fxp-apply">Adicionar linha</button><button type="button" class="btn sm" data-act="fxp-cancel">Cancelar</button></div></div>';
+    var lab = $('#fxp-lab'); if (lab) lab.focus(); slot.scrollIntoView({ block: 'nearest' });
+  }
+  function fxpApplyNew() {
+    var M = FXP.M, s = FXP.s, W = window.WenFx, ta = $('#fxpt'), lab = (($('#fxp-lab') || {}).value || '').trim(), un = (($('#fxp-un') || {}).value || '').trim(), msg = $('#fxpmsg');
+    function bad(t) { msg.hidden = false; msg.className = 'fxmsg err'; msg.textContent = t; }
+    if (!lab) return bad('Dê um nome para a linha.');
+    var conv = W.fromEdit(ta.value, M.nm); if (!conv.ok) return bad(conv.error);
+    var d = fxData(s, true), nr = FX_ROW0 + 1 + d.add.reduce(function (mx, x) { return Math.max(mx, x.r - FX_ROW0); }, 0);
+    var c = ENG.check(s.name, 'C' + nr, conv.raw); if (!c.ok) return bad(c.error);
+    d.add.push({ r: nr, l: lab, f: conv.raw, u: un }); fxApplyAdd(s); fxSave(); FXP.ed = null; fxpRefresh(false); toast('Linha própria adicionada');
+    var el = $('#fxrw-' + nr); if (el) el.scrollIntoView({ block: 'center' });
+  }
+  // ---- autocompletar
+  function fxpToken(ta) {
+    var p = ta.selectionStart, t = ta.value.slice(0, p), m = /\[([^\]\[]*)$/.exec(t);
+    if (m) return { q: m[1], start: p - m[1].length - 1, end: p, br: true };
+    m = /([A-Za-zÀ-ÿα-ωΑ-Ω_][A-Za-zÀ-ÿα-ωΑ-Ω0-9_]*)$/.exec(t);
+    if (m && !/[0-9]$/.test(t.slice(0, t.length - m[0].length)) && !/[\]]$/.test(t.slice(0, t.length - m[0].length))) return { q: m[1], start: p - m[1].length, end: p, br: false };
+    return null;
+  }
+  var FXFN = [['SE', 'SE(', 'se (condição; então; senão)'], ['MÍN', 'MÍN(', 'menor valor'], ['MÁX', 'MÁX(', 'maior valor'], ['ABS', 'ABS(', 'valor absoluto'], ['RAIZ', 'RAIZ(', 'raiz quadrada'], ['ARRED', 'ARRED(', 'arredondar (valor; casas)'], ['POTÊNCIA', 'POTÊNCIA(', 'potência (base; expoente)'], ['E', 'E(', 'todas verdadeiras'], ['OU', 'OU(', 'alguma verdadeira']];
+  function fxpAcUpdate() {
+    var ta = $('#fxpt'), box = $('#fxpac'); if (!ta || !box || !FXP.ed) return;
+    var tk = fxpToken(ta); if (!tk || (!tk.br && tk.q.length < 1)) return fxpAcClose();
+    var M = FXP.M, s = FXP.s, q = fold(tk.q), items = [];
+    M.nm.rows.forEach(function (x) {
+      if (x.r === FXP.ed.r) return; var sy = M.nm.symOf[x.r] || '', nmf = fold(x.name), hit = tk.br ? (!q || nmf.indexOf(q) >= 0 || fold(sy).indexOf(q) === 0) : (sy && fold(sy).indexOf(q) === 0) || nmf.split(/[^a-z0-9α-ω]+/).some(function (w) { return w.length > 1 && w.indexOf(q) === 0; });
+      if (hit) items.push({ ins: sy || ('[' + (M.nm.nameOf[x.r]) + ']'), sym: sy, name: x.name, r: x.r, rank: (sy && fold(sy) === q ? 0 : sy && fold(sy).indexOf(q) === 0 ? 1 : 2) });
+    });
+    items.sort(function (a, b) { return a.rank - b.rank; });
+    if (!tk.br) FXFN.forEach(function (f) { if (fold(f[0]).indexOf(q) === 0 && q.length >= 1 && !items.some(function (x) { return x.sym === f[0]; })) items.push({ ins: f[1], fn: true, sym: f[0], name: f[2], r: null, rank: 3 }); });
+    items = items.slice(0, 8);
+    if (!items.length) return fxpAcClose();
+    FXP.ac = { tk: tk, items: items, i: 0 };
+    box.innerHTML = items.map(function (x, k) {
+      var v = x.r != null ? fxpValHtmlPlain(M, x.r) : '';
+      return '<button type="button" class="fxai" role="option" id="fxai-' + k + '" data-act="fxp-pick" data-k="' + k + '" aria-selected="' + (k === 0) + '"><b>' + (x.sym ? window.WenFx.symH(x.sym) : '') + '</b><span>' + esc(x.name) + '</span><i>' + esc(v) + '</i></button>';
+    }).join(''); box.hidden = false;
+  }
+  function fxpValHtmlPlain(M, rn) { var s = M.s, v = cellV(s, 'C' + rn), o = fmtOut(s, M.byR[rn], v), u = txt(cellV(s, 'D' + rn)); return (o.err ? '—' : o.t) + (u && u !== '-' && typeof v !== 'string' ? ' ' + u : ''); }
+  function fxpAcClose() { var box = $('#fxpac'); if (box) { box.hidden = true; box.innerHTML = ''; } FXP.ac = null; }
+  function fxpAcMove(d) {
+    if (!FXP.ac) return; var n = FXP.ac.items.length; FXP.ac.i = (FXP.ac.i + d + n) % n;
+    $$('#fxpac .fxai').forEach(function (b, k) { b.setAttribute('aria-selected', k === FXP.ac.i); if (k === FXP.ac.i) b.scrollIntoView({ block: 'nearest' }); });
+  }
+  function fxpAcPick(k) {
+    var ac = FXP.ac, ta = $('#fxpt'); if (!ac || !ta) return; var it = ac.items[k == null ? ac.i : k], tk = ac.tk;
+    var v = ta.value, ins = it.ins; ta.value = v.slice(0, tk.start) + ins + v.slice(tk.end); var pos = tk.start + ins.length; ta.focus(); try { ta.setSelectionRange(pos, pos); } catch (e) { }
+    fxpAcClose(); fxpGrow(ta); fxpLive();
+  }
+  function fxpInsertOp(t) {
+    var ta = $('#fxpt'); if (!ta) return; var a = ta.selectionStart, b = ta.selectionEnd, caret = t.indexOf('|'), text = t.replace('|', '');
+    var sel = ta.value.slice(a, b); if (caret >= 0 && sel && /\|/.test(t)) text = t.replace('|', sel);
+    ta.value = ta.value.slice(0, a) + text + ta.value.slice(b); var pos = a + (caret >= 0 ? caret + (sel || '').length : text.length);
+    ta.focus(); try { ta.setSelectionRange(pos, pos); } catch (e) { } fxpGrow(ta); fxpLive(); fxpAcClose();
+  }
+  function fxpMemoMods(s) {
+    var mods = fxModList(s); if (!mods.length) return '';
+    var M = fxpBuild(s), W = window.WenFx, h = '<h2>Fórmulas alteradas pelo usuário</h2><table class="mt meq"><thead><tr><th>Grandeza / caso</th><th>Fórmula usada neste memorial</th><th>Fórmula original da planilha</th></tr></thead><tbody>';
+    function row(name, a, b, extra) { return '<tr class="modr"><td>' + esc(name) + (extra || '') + '</td><td class="mth">' + a + '</td><td class="mth">' + b + '</td></tr>'; }
+    function txtOf(raw) { return '<span class="nt">' + esc(raw === '' || raw == null ? '(vazio)' : String(raw)) + '</span>'; }
+    mods.forEach(function (x) {
+      var rn = +x.a.slice(1), sym = fxpSym(M, rn), curA = fxIsF(x.cur) ? W.ast(x.cur) : null, oriA = (!x.custom && fxIsF(x.orig)) ? W.ast(x.orig) : null;
+      var curH = curA ? sym + ' = ' + fxpMath(M, curA, false) : sym + ' = ' + txtOf(x.cur);
+      if (x.custom) { h += row(x.l, curH, '<span class="nt">não existe na planilha (linha própria)</span>'); return; }
+      if (curA && oriA && curA.k === 'fn' && oriA.k === 'fn' && curA.n === oriA.n && curA.a.length === oriA.a.length && (curA.n === 'CHOOSE' || curA.n === 'IF')) {
+        var cs = W.cases(x.cur, { caseNames: function (hd) { return fxpCaseNames(M, hd); } }), any = false;
+        cs.cases.forEach(function (c) { var oa = oriA.a[c.i]; if (oa && W.serialize(c.ast) !== W.serialize(oa)) { any = true; h += row(x.l, sym + ' = ' + fxpMath(M, c.ast, false), sym + ' = ' + fxpMath(M, oa, false), '<br><span class="nt">' + esc(c.name) + '</span>'); } });
+        if (any) return;
+      }
+      h += row(x.l, curH, oriA ? sym + ' = ' + fxpMath(M, oriA, false) : sym + ' = ' + txtOf(x.orig));
+    });
+    return h + '</tbody></table>';
+  }
+  // ---- memorial: equações usadas (caso ativo) com os números
+  function fxpMemoEquations(s) {
+    var M = fxpBuild(s), W = window.WenFx, out = [];
+    M.blocks.forEach(function (b) {
+      b.rows.forEach(function (rn) {
+        var r = M.byR[rn]; if (r.kind === 'in') return; var raw = s.cells['C' + rn]; if (!fxIsF(raw)) return;
+        var v = cellV(s, 'C' + rn); if (typeof v !== 'number') return;
+        var V = fxpView(M, rn); if (!V.ast) return; var ast = V.ast, casename = null;
+        if (V.cs && V.cs.kind === 'choose' && V.act) { var cc = V.cs.cases.filter(function (c) { return c.i === V.act; })[0]; if (cc) { ast = cc.ast; casename = cc.name; } }
+        else if (V.cs) return;
+        var trivial = ast.k === 'ref' && ast.single;
+        if (trivial) return;
+        out.push({ rn: rn, name: M.nm.byRow[rn].name, casename: casename, sym: fxpSym(M, rn), eq: fxpMath(M, ast, false), num: fxpMath(M, ast, true), val: fxpValHtmlPlain(M, rn), mod: fxMod(s, 'C' + rn), unit: txt(cellV(s, 'D' + rn)), v: v });
+      });
+    });
+    return out;
+  }
+  function fxpMemoHtml(s) {
+    var eqs = fxpMemoEquations(s); if (!eqs.length) return '';
+    return '<h2>Equações usadas (caso selecionado, com os números)</h2><table class="mt meq"><thead><tr><th>Grandeza</th><th>Equação</th><th class="r">Com os números</th></tr></thead><tbody>' + eqs.map(function (x) {
+      var e = eqOf(x.v, x.unit);
+      return '<tr' + (x.mod ? ' class="modr"' : '') + '><td>' + esc(x.name) + (x.casename ? '<br><span class="nt">' + esc(x.casename) + '</span>' : '') + (x.mod ? '<br><span class="modn">fórmula alterada pelo usuário</span>' : '') + '</td><td class="mth">' + x.sym + ' = ' + x.eq + '</td><td class="mth">' + x.sym + ' = ' + x.num + ' = <b>' + esc(x.val) + '</b>' + (e ? ' <span class="nt">(' + esc(e) + ')</span>' : '') + '</td></tr>';
+    }).join('') + '</tbody></table>';
   }
 
   // ---------------------------------------------------------------- eventos
@@ -1476,7 +1856,17 @@
       case 'copycalc': if (s) copyText(calcSummaryText(s)); break;
       case 'resetcalc': if (s) resetCalc(s); break;
       case 'step': (function () { var inp = t.closest('.inp').querySelector('input'); if (inp) stepInput(inp, +t.dataset.d, 1); })(); break;
-      case 'fxtoggle': if (s) fxToggle(s); break;
+      case 'fxtoggle': if (s) fxpOpen(s); break;
+      case 'fxp-close': fxpClose(); break;
+      case 'fxp-sel': fxpSelect(+t.dataset.r); break;
+      case 'fxp-edit': fxpEdit(+t.dataset.r, t.dataset.i == null ? null : +t.dataset.i); break;
+      case 'fxp-apply': if (FXP.ed && FXP.ed.isNew) fxpApplyNew(); else fxpApply(); break;
+      case 'fxp-cancel': fxpCloseEd(); break;
+      case 'fxp-restore': fxpRestore(); break;
+      case 'fxp-del': fxpDel(); break;
+      case 'fxp-addrow': fxpNew(); break;
+      case 'fxp-op': fxpInsertOp(t.dataset.t); break;
+      case 'fxp-pick': fxpAcPick(+t.dataset.k); break;
       case 'fxedit': if (s) fxOpen(s, +t.dataset.r); break;
       case 'fxapply': if (s) fxApply(s); break;
       case 'fxcancel': fxCloseEditor(true); break;
@@ -1494,7 +1884,7 @@
       case 'fxfile': (function () { var f = document.createElement('input'); f.type = 'file'; f.accept = 'application/json,.json,text/plain'; f.onchange = function () { var rd = new FileReader(); rd.onload = function () { fxImportDo(String(rd.result)); }; rd.readAsText(f.files[0]); }; f.click(); })(); break;
       case 'fxrestoreall': if (s) {
         if (t.dataset.arm !== '1') { t.dataset.arm = '1'; t.textContent = 'Confirmar: descartar alterações'; t.classList.add('dng'); setTimeout(function () { if (t.isConnected) { t.dataset.arm = '0'; t.textContent = 'Restaurar original'; t.classList.remove('dng'); } }, 4000); }
-        else { fxRestoreAll(s); FXEDIT = null; rerenderKeep(); toast('Fórmulas originais restauradas'); } } break;
+        else { fxRestoreAll(s); FXEDIT = null; FXP.ed = null; if (FXP.open) fxpRefresh(false); else rerenderKeep(); toast('Fórmulas originais restauradas'); } } break;
       case 'memorial': if (s) memorialForm(s); break;
       case 'memogen': if (s) memorialGen(s); break;
       case 'memoprint': memorialPrint(); break;
@@ -1520,6 +1910,10 @@
       var ecx = field.querySelector('[data-echo]'); if (ecx) { var un = txt(cellV(s, 'D' + r)); ecx.textContent = (!t.dataset.text && n !== null && !isNaN(n)) ? echoText(t.value, n, un) : ''; }
       refreshCalc(s, false);
       var hasG = calcModel(s).filter(function (x) { return x.r === r; })[0]; if (hasG && hasG.rawF && !field.querySelector('.rbtn')) { field.querySelector('[data-ctl]').insertAdjacentHTML('beforeend', '<button class="rbtn" data-act="unglobal" aria-label="Voltar ao valor padrão">' + ic('reset', 's') + '</button>'); var g = field.querySelector('[data-g]'); if (g) g.hidden = true; }
+    } else if (t.dataset.act === 'fxp-in') {
+      fxpGrow(t); fxpAcUpdate(); clearTimeout(fxT); fxT = setTimeout(fxpLive, 120);
+    } else if (t.dataset.act === 'fxp-filter') {
+      FXP.filter = t.value; fxpFilterApply();
     } else if (t.dataset.act === 'fxin') {
       clearTimeout(fxT); fxT = setTimeout(function () { if (s) fxLive(s); }, 120);
     } else if (t.dataset.act === 'fxfind') {
@@ -1536,6 +1930,19 @@
   });
   document.addEventListener('keydown', function (e) {
     var tag = (e.target.tagName || '').toLowerCase();
+    if (FXP.open) {
+      if (e.target.id === 'fxpt') {
+        if (FXP.ac && !($('#fxpac') || {}).hidden) {
+          if (e.key === 'ArrowDown') { e.preventDefault(); fxpAcMove(1); return; }
+          if (e.key === 'ArrowUp') { e.preventDefault(); fxpAcMove(-1); return; }
+          if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); fxpAcPick(); return; }
+          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fxpAcClose(); return; }
+        }
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (FXP.ed && FXP.ed.isNew) fxpApplyNew(); else fxpApply(); return; }
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fxpCloseEd(); return; }
+      }
+      if (e.key === 'Escape' && !$('#sheet')) { if (FXP.ed) fxpCloseEd(); else fxpClose(); return; }
+    }
     if (e.target.id === 'fxta' && FXEDIT) {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (cur.sheet) fxApply(cur.sheet); return; }
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fxCloseEditor(true); return; }

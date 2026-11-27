@@ -463,7 +463,7 @@
       var sn = refs[i].sh || sheet;
       if (!this.sheets[sn]) return { ok: false, error: 'A aba "' + sn + '" não existe.' };
     }
-    if (this.wouldCycle(sheet, addr, raw)) return { ok: false, error: 'Referência circular: essa fórmula depende, direta ou indiretamente, da própria célula ' + addr + '.' };
+    if (this.wouldCycle(sheet, addr, raw)) return { ok: false, error: 'Referência circular: essa fórmula depende, direta ou indiretamente, da própria linha que você está editando.' };
     var s = this.sheets[sheet], old = s[addr], had = (addr in s), val;
     s[addr] = raw; this.cache = {};
     try { val = this.cell(sheet, addr); } finally { if (had) s[addr] = old; else delete s[addr]; this.cache = {}; }

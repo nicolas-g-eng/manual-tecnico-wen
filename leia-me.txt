@@ -1,17 +1,22 @@
-MANUAL TECNICO WEN v3.4 - formulas editaveis + leitura inequivoca de numeros
+MANUAL TECNICO WEN v3.5 - painel "Formulas" em nomes e simbolos
 
-O QUE MUDOU
-- Botao "Editar formulas" em TODAS as 29 calculadoras: mostra a formula de cada linha, edita (Enter aplica, Esc cancela), valida e recalcula na hora.
-  Tambem edita o valor padrao das entradas, adiciona "linha propria" e restaura o original (por linha ou da calculadora inteira).
-  Alteracoes ficam salvas no aparelho; "Exportar / importar" leva para outro aparelho. O Memorial usa as formulas atuais e marca as alteradas.
-- Numeros: milhar agora com ESPACO (6 353), nunca ponto; virgula e sempre decimal. Entradas aceitam 9.53 e 9,53 (e 1 000,5); o app mostra "lido como ...".
-- Inercia e modulo resistente mostram os dois: 6 353 mm4 (= 0,635 cm4); mm3 (= cm3). Nota: mm4 -> cm4 divide por 10 000; mm3 -> cm3 divide por 1 000.
-- 3.3: criterios de flecha L/800, 500, 360, 300, 250, 100 em lista; unidade da secao personalizada (mm2 / mm4) aparece certa.
+O QUE MUDOU (sobre a v3.4)
+- Botao "Formulas" em TODAS as 29 calculadoras: abre um painel unico com todas as formulas da calculadora, agrupadas por bloco,
+  em nomes e simbolos (sem $C$31): "Nome - simbolo = formula - resultado e unidade". Busca por nome ou simbolo.
+- Formulas com selecao (CHOOSE/SE: secao, esquema da viga...) aparecem ABERTAS, uma sub-linha por caso, com o nome do caso e o caso ATIVO marcado;
+  cada caso se edita isoladamente (os outros nao mudam).
+- Edicao em nomes: digite o simbolo (L, P, E, Ix, sigma...) ou [nome da linha]; autocompletar com nome, valor e unidade;
+  botoes ^ raiz pi x / SE MIN MAX ABS; "Valor agora" mostra a conta com os numeros: Ix = 40 . 80^3 / 10 = 2 048 000 mm4 (= 204,8 cm4).
+- Notacao matematica (potencia, fracao, raiz, indices) no painel e no memorial. Memorial traz "Equacoes usadas (com os numeros)".
+- Clique no nome de uma linha: destaca de onde ela vem e para onde vai.
+- 3.3: cartao "Parametros de decisao" no topo (esquema, criterio de flecha L/N, fator de seguranca, material e E).
+- Mantido: restaurar por linha/caso/calculadora, exportar/importar, linhas proprias, validacao com mensagem clara,
+  persistencia no aparelho, memorial com "formula alterada pelo usuario", milhar com espaco, mm4 -> cm4.
 
 COMO PUBLICAR (GitHub, sem git)
-1. Abra o repositorio nicolas-g-eng/manual-tecnico-wen > Add file > Upload files.
-2. Arraste o CONTEUDO desta pasta (index.html, sw.js, data.json, css/, js/, leia-me.txt). Nao arraste a pasta em si.
-3. Commit. Abra o app uma vez com internet para atualizar o cache offline (o cache novo e wen-manual-v34-formulas-01).
-OBS: arquivos novos: css/formulas.css. Arquivos substituidos: index.html, sw.js, data.json, js/app.js, js/engine.js, css/tema.css.
+1. Repositorio nicolas-g-eng/manual-tecnico-wen > Add file > Upload files.
+2. Arraste o CONTEUDO desta pasta (index.html, sw.js, data.json, css/, js/, leia-me.txt), nao a pasta em si.
+3. Commit. Abra o app uma vez com internet (cache novo: wen-manual-v35-formulas-01).
+Arquivos novos: js/formulas.js e css/formulas.css. Substituidos: index.html, sw.js, data.json, js/app.js, js/engine.js, css/tema.css.
 
 AVISO: pre-dimensionamento. A responsabilidade tecnica (ART) e do engenheiro.
